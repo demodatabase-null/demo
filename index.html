@@ -473,7 +473,7 @@ async function doLogin(email,password){
   await connectUser(data.user);
 }
 async function doSignup(email,password){
-  const {data,error}=await supabase.auth.signUp({email,password,options:{data:{first_name:$('#firstName').value.trim(),last_name:$('#lastName').value.trim()}}});
+  const {data,error}=await supabase.auth.signUp({email,password,options:{emailRedirectTo:window.location.href,data:{first_name:$('#firstName').value.trim(),last_name:$('#lastName').value.trim()}}});
   if(error){$('#lerr').textContent='สร้างบัญชีไม่สำเร็จ: '+error.message;return}
   if(data.session) await connectUser(data.user);
   else $('#lerr').textContent='สร้างบัญชีแล้ว กรุณายืนยันอีเมลจากกล่องจดหมายก่อนเข้าสู่ระบบ';
@@ -907,7 +907,7 @@ function vEr(){
 
 /* ============ EVENTS ============ */
 const H = {
-  toggleSignup:()=>{S.signup=!S.signup;$('#signupFields').classList.toggle('hidden',!S.signup);$('#loginSubmit').textContent=S.signup?'สร้างบัญชี':'เข้าสู่ระบบ';$('#signupToggle').textContent=S.signup?'กลับไปเข้าสู่ระบบ':'สร้างบัญชีนักศึกษา';$('#pw').setAttribute('autocomplete',S.signup?'new-password':'current-password');$('#lerr').textContent=''},
+  toggleSignup:()=>{S.signup=!S.signup;$('#signupFields').classList.toggle('hidden',!S.signup);$('#firstName').required=S.signup;$('#lastName').required=S.signup;$('#loginSubmit').textContent=S.signup?'สร้างบัญชี':'เข้าสู่ระบบ';$('#signupToggle').textContent=S.signup?'กลับไปเข้าสู่ระบบ':'สร้างบัญชีนักศึกษา';$('#pw').setAttribute('autocomplete',S.signup?'new-password':'current-password');$('#lerr').textContent=''},
   logout:async()=>{await supabase.auth.signOut();S.user=null;DB=seed();render()},
   tab:b=>{S.tab=b.dataset.tab;S.filter=(S.user.role==='staff'&&b.dataset.tab==='appeals')?'pending':'all';render()},
   filter:b=>{S.filter=b.dataset.v;render()},

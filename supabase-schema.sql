@@ -323,8 +323,8 @@ create policy "teacher_add_grade_history" on public.grade_history for insert to 
 );
 drop policy if exists "teacher_update_grade" on public.enrollments;
 create policy "teacher_update_grade" on public.enrollments for update to authenticated using (
-  public.app_role()='teacher' and exists(select 1 from public.course_offerings o join public.teachers t using(teacher_id) join public.grade_appeals a using(enrollment_id) where o.offering_id=enrollments.offering_id and t.user_id=public.app_user_id() and a.status='reviewing')
-) with check (public.app_role()='teacher' and exists(select 1 from public.course_offerings o join public.teachers t using(teacher_id) join public.grade_appeals a using(enrollment_id) where o.offering_id=enrollments.offering_id and t.user_id=public.app_user_id() and a.status='reviewing'));
+  public.app_role()='teacher' and exists(select 1 from public.course_offerings o join public.teachers t using(teacher_id) join public.enrollments en using(offering_id) join public.grade_appeals a using(enrollment_id) where o.offering_id=enrollments.offering_id and t.user_id=public.app_user_id() and a.status='reviewing')
+) with check (public.app_role()='teacher' and exists(select 1 from public.course_offerings o join public.teachers t using(teacher_id) join public.enrollments en using(offering_id) join public.grade_appeals a using(enrollment_id) where o.offering_id=enrollments.offering_id and t.user_id=public.app_user_id() and a.status='reviewing'));
 drop policy if exists "staff_update_offerings" on public.course_offerings;
 create policy "staff_update_offerings" on public.course_offerings for update to authenticated using (public.is_staff()) with check (public.is_staff());
 
