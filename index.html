@@ -245,7 +245,7 @@ const SCHEMA = {
   course_offering:{pk:'offering_ID',cols:['offering_ID','course_ID','teacher_ID','semester','academic_year','course_status_id'],fk:{course_ID:'course',teacher_ID:'Teachers',course_status_id:'course_status'}},
   enrollment:{pk:'enrollment_ID',cols:['enrollment_ID','offering_ID','student_ID','grade'],fk:{offering_ID:'course_offering',student_ID:'student'}},
   grade_history:{pk:'grade_history_ID',cols:['grade_history_ID','appeal_ID','enrollment_ID','old_grade','new_grade','changed_by'],fk:{appeal_ID:'grade_appeals',enrollment_ID:'enrollment'}},
-  grade_appeals:{pk:'appeals_ID',cols:['appeals_ID','enrollment_ID','grade_at_request','reason','status'],fk:{enrollment_ID:'enrollment'}},
+  grade_appeals:{pk:'appeals_ID',cols:['appeals_ID','enrollment_ID','grade_at_request','reason','staff_comment','teacher_comment','status'],fk:{enrollment_ID:'enrollment'}},
   appeal_reviews:{pk:'review_id',cols:['review_id','reviewer_id','appeal_id','decision','new_grade'],fk:{reviewer_id:'User',appeal_id:'grade_appeals'}},
   appeal_status_history:{pk:'history_ID',cols:['history_ID','appeal_ID','changed_by','old_status','new_status'],fk:{appeal_ID:'grade_appeals',changed_by:'User'}},
   appeal_attachment:{pk:'attachment_ID',cols:['attachment_ID','appeal_ID','file_name','file_type'],fk:{appeal_ID:'grade_appeals',file_name:'(ติดป้าย FK ตามภาพ ER)'}},
@@ -690,11 +690,15 @@ function appealModal(aid){
   <div class="sec"><h4>เหตุผล</h4><div class="box">${esc(a.reason)}</div></div>
   <div class="sec"><h4>ไฟล์แนบ</h4>${atts.length?`<div class="files">${atts.map(x=>`<span class="file">${x.storage_path?`<button type="button" data-act="downloadAttach" data-path="${esc(x.storage_path)}">${esc(x.file_name)}</button>`:esc(x.file_name)} <span style="color:var(--muted)">.${esc(x.file_type)}</span></span>`).join('')}</div>`:'<span style="color:var(--muted);font-size:13px">ไม่มีไฟล์แนบ</span>'}</div>
   ${rev?`<div class="sec"><h4>ผลการพิจารณา</h4><div class="box">โดย ${esc(personName(rev.reviewer_id))} · ${rev.decision==='approved'?`<b style="color:var(--s-ok)">อนุมัติ</b> เกรดใหม่ <b>${rev.new_grade}</b>`:'<b style="color:var(--s-no)">ไม่อนุมัติ</b> คงเกรดเดิม'}</div></div>`:''}
+  ${a.staff_comment?`<div class="sec"><h4>ความคิดเห็นจากเจ้าหน้าที่</h4><div class="box">${esc(a.staff_comment)}</div></div>`:''}
+  ${a.teacher_comment?`<div class="sec"><h4>ความคิดเห็นจากอาจารย์</h4><div class="box">${esc(a.teacher_comment)}</div></div>`:''}
   ${gh.length?`<div class="sec"><h4>ประวัติการเปลี่ยนเกรด</h4>${gh.map(g=>`<div class="box">${g.old_grade} → <b>${g.new_grade}</b> · แก้ไขโดย ${esc(personName(g.changed_by))}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>ประวัติสถานะ</h4><ul class="tl">${hist.map(h=>`<li>${h.old_status?STATUS[h.old_status]+' → ':'ยื่นคำร้อง → '}<b>${STATUS[h.new_status]}</b><div class="by">โดย ${esc(personName(h.changed_by))}</div></li>`).join('')}</ul></div>
   ${canAct?`<div class="sec" style="border-top:1.5px solid var(--ink);padding-top:12px"><h4>พิจารณาคำร้อง</h4>
     <div class="radios"><label><input type="radio" name="dec" value="approved" checked> อนุมัติ แก้ไขเกรด</label><label><input type="radio" name="dec" value="rejected"> ไม่อนุมัติ (คงเกรดเดิม)</label></div>
-    <div id="ngWrap"><label for="ng">เกรดใหม่ (new_grade)</label><select id="ng">${gradeOpts}</select></div></div>`:''}
+    <div id="ngWrap"><label for="ng">เกรดใหม่ (new_grade)</label><select id="ng">${gradeOpts}</select></div>
+    <label for="teacherComment">ความคิดเห็นถึงนักศึกษา</label><textarea id="teacherComment" placeholder="ระบุผลตรวจสอบหรือเหตุผลการพิจารณา"></textarea></div>`:''}
+  ${staffAct?`<div class="sec"><label for="staffComment">ความคิดเห็นถึงนักศึกษา</label><textarea id="staffComment" placeholder="แจ้งผลตรวจเอกสารหรือสิ่งที่นักศึกษาควรดำเนินการ"></textarea></div>`:''}
   <div class="actions"><button class="btn" data-act="close">ปิด</button>
   ${staffAct?`<button class="btn no" data-act="staffReject" data-id="${aid}">ไม่ผ่าน (ปฏิเสธคำร้อง)</button><button class="btn ok" data-act="staffConfirm" data-id="${aid}">ยืนยันคำร้อง ส่งต่ออาจารย์</button>`:''}
   ${canAct?`<button class="btn primary" data-act="decide" data-id="${aid}">ยืนยันผลพิจารณา</button>`:''}${stuCancel?`<button class="btn no" data-act="cancelAsk" data-id="${aid}">ยกเลิกคำร้อง</button>`:''}</div><div id="cancelBox"></div>`);
@@ -735,7 +739,9 @@ function staffConfirm(aid){
   staffConfirm0(aid);
 }
 async function staffConfirm0(aid){
-  const {error}=await sbClient.from('grade_appeals').update({status:'reviewing'}).eq('appeals_id',aid);
+  const comment=$('#staffComment')?.value.trim()||'';
+  if(!comment){toast('กรุณาใส่ความคิดเห็นถึงนักศึกษา');$('#staffComment')?.focus();return}
+  const {error}=await sbClient.rpc('staff_respond_appeal',{p_appeal_id:aid,p_decision:'reviewing',p_comment:comment});
   if(error){toast('ยืนยันไม่สำเร็จ: '+error.message);return}
   await loadRemoteData(); render(); appealModal(aid); toast('ยืนยันคำร้องและบันทึกลงฐานข้อมูลแล้ว');
 }
@@ -744,7 +750,9 @@ function staffReject(aid){
   staffReject0(aid);
 }
 async function staffReject0(aid){
-  const {error}=await sbClient.from('grade_appeals').update({status:'rejected'}).eq('appeals_id',aid);
+  const comment=$('#staffComment')?.value.trim()||'';
+  if(!comment){toast('กรุณาใส่ความคิดเห็นถึงนักศึกษา');$('#staffComment')?.focus();return}
+  const {error}=await sbClient.rpc('staff_respond_appeal',{p_appeal_id:aid,p_decision:'rejected',p_comment:comment});
   if(error){toast('ปฏิเสธไม่สำเร็จ: '+error.message);return}
   await loadRemoteData(); render(); appealModal(aid); toast('บันทึกผลลงฐานข้อมูลแล้ว');
 }
@@ -754,7 +762,9 @@ function decideAppeal(aid){
 }
 async function decideAppeal0(aid){
   const dec=document.querySelector('input[name=dec]:checked').value;
-  const {error}=await sbClient.rpc('review_appeal',{p_appeal_id:aid,p_decision:dec,p_new_grade:dec==='approved'?$('#ng').value:null});
+  const comment=$('#teacherComment')?.value.trim()||'';
+  if(!comment){toast('กรุณาใส่ความคิดเห็นถึงนักศึกษา');$('#teacherComment')?.focus();return}
+  const {error}=await sbClient.rpc('review_appeal',{p_appeal_id:aid,p_decision:dec,p_new_grade:dec==='approved'?$('#ng').value:null,p_comment:comment});
   if(error){toast('บันทึกผลไม่สำเร็จ: '+error.message);return}
   await loadRemoteData(); render(); appealModal(aid); toast(dec==='approved'?'อนุมัติและบันทึกการแก้เกรดแล้ว':'บันทึกผลไม่อนุมัติแล้ว');
 }
