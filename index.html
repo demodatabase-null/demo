@@ -443,14 +443,16 @@ function loginView(){
     <div class="panel card">
       <form id="lf" autocomplete="off">
         <div id="signupFields" class="hidden"><label for="firstName">ชื่อ</label><input id="firstName" type="text"><label for="lastName">นามสกุล</label><input id="lastName" type="text"></div>
-        <label for="un">อีเมล</label><input id="un" type="email" autocomplete="email" required>
+        <label for="un">อีเมลหรือชื่อบัญชี</label><input id="un" type="text" autocomplete="username" required>
         <label for="pw">รหัสผ่าน</label><input id="pw" type="password" autocomplete="current-password" minlength="8" required>
         <div class="err" id="lerr" role="alert"></div>
         <button id="loginSubmit" class="btn primary" style="width:100%;margin-top:6px" type="submit">เข้าสู่ระบบ</button>
         <button id="signupToggle" class="btn" style="width:100%;margin-top:8px" type="button" data-act="toggleSignup">สร้างบัญชีนักศึกษา</button>
       </form>
       <div class="demo">
-        <p>บัญชีใหม่เริ่มต้นเป็นนักศึกษา บัญชีอาจารย์และเจ้าหน้าที่ต้องได้รับการกำหนดโดยผู้ดูแลระบบ</p>
+        <p>บัญชีทดลองอาจารย์: <b>advisor</b> · รหัสผ่าน <b>11223344</b></p>
+        <p>บัญชีทดลองเจ้าหน้าที่: <b>admin</b> · รหัสผ่าน <b>11223344</b></p>
+        <p>บัญชีใหม่เริ่มต้นเป็นนักศึกษา ใช้อีเมลที่ระบบรับได้ ไม่ต้องยืนยันอีเมล</p>
       </div>
     </div>
   </div></div>`;
@@ -469,6 +471,9 @@ async function connectUser(authUser){
   }
 }
 async function doLogin(email,password){
+  const account=email.trim().toLowerCase();
+  if(account==='advisor') email='advisor@demo.invalid';
+  else if(account==='admin') email='admin@demo.invalid';
   const {data,error}=await sbClient.auth.signInWithPassword({email,password});
   if(error){$('#lerr').textContent='เข้าสู่ระบบไม่สำเร็จ: '+error.message;return}
   await connectUser(data.user);
