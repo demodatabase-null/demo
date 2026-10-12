@@ -765,6 +765,33 @@ async function decideAppeal0(aid){
   await loadRemoteData(); render(); appealModal(aid); toast(dec==='approved'?'อนุมัติและบันทึกการแก้เกรดแล้ว':'บันทึกผลไม่อนุมัติแล้ว');
 }
 
+async function resetDemoData(){
+  if(S.user?.role!=='staff'){toast('รีเซ็ตได้เฉพาะบัญชีเจ้าหน้าที่');return}
+  const confirmed=window.confirm('รีเซ็ตข้อมูลบัญชี student กลับไปก่อนยื่นคำร้องหรือไม่?\n\nจะลบคำร้องทดลองและผลพิจารณา ประวัติ และการแจ้งเตือนที่เกี่ยวข้อง พร้อมคืนเกรดตัวอย่างเดิม (CS101 B, CS201 C+, CPE210 B+, MA101 D)\n\nบัญชี รายวิชา และรายชื่อนักศึกษาจะไม่ถูกลบ การรีเซ็ตย้อนกลับไม่ได้');
+  if(!confirmed)return;
+  const demo=DB.student.find(s=>DB.User.some(u=>u.user_ID==s.user_ID&&u.username==='student'));
+  if(!demo){toast('ไม่พบบัญชี student ชุดทดลอง');return}
+  const enrollmentIds=DB.enrollment.filter(e=>e.student_ID==demo.student_ID).map(e=>e.enrollment_ID);
+  const {data:appeals,error:appealError}=await sbClient.from('grade_appeals').select('appeals_id').in('enrollment_id',enrollmentIds);
+  if(appealError){toast('อ่านข้อมูลคำร้องเพื่อรีเซ็ตไม่สำเร็จ: '+appealError.message);return}
+  const appealIds=(appeals||[]).map(a=>a.appeals_id);
+  if(appealIds.length){
+    const {data:attachments,error:attachmentError}=await sbClient.from('appeal_attachments').select('storage_path').in('appeal_id',appealIds).not('storage_path','is',null);
+    if(attachmentError){toast('อ่านไฟล์แนบเพื่อรีเซ็ตไม่สำเร็จ: '+attachmentError.message);return}
+    const paths=(attachments||[]).map(a=>a.storage_path).filter(Boolean);
+    if(paths.length){
+      const {error}=await sbClient.storage.from('appeal-evidence').remove(paths);
+      if(error){toast('ลบไฟล์แนบของชุดทดลองไม่สำเร็จ: '+error.message);return}
+    }
+  }
+  const {data:removed,error}=await sbClient.rpc('reset_demo_student_data');
+  if(error){toast('รีเซ็ตไม่สำเร็จ: '+error.message);return}
+  await loadRemoteData();
+  BASE=JSON.parse(JSON.stringify(DB));
+  render();
+  toast(`รีเซ็ตชุดทดลองแล้ว ลบคำร้อง ${Number(removed)||0} รายการ`);
+}
+
 /* ============ NOTIFICATIONS ============ */
 function vNotif(){
   const list=DB.notification.filter(n=>n.user_id==S.user.user_ID).sort((a,b)=>b.notification_ID-a.notification_ID);
@@ -907,7 +934,7 @@ function vDb(){
     const t=sc.fk[c]&&c!=='file_name'?` title="อ้างอิง ${sc.fk[c]}"`:'';
     return `<td class="mono"${t}>${esc(v)}</td>`}).join('')}</tr>`).join('');
   return `<div class="h-row"><div><h2>ฐานข้อมูล</h2><p>ตารางทั้ง 14 ตารางตามแผนภาพ ER · แถวสีเขียว = เพิ่มใหม่ แถวสีเหลือง = แก้ไข (เทียบกับจุดเริ่มต้น)</p></div>
-  <button class="btn sm" data-act="snapshot">ตั้งจุดเริ่มต้นใหม่ (ก่อนทำ)</button></div>
+  <div class="actions"><button class="btn sm" data-act="snapshot">ตั้งจุดเริ่มต้นใหม่ (ก่อนทำ)</button>${S.user.role==='staff'?'<button class="btn sm no" data-act="resetDemo">รีเซ็ตชุดทดลองก่อนยื่นคำร้อง</button>':''}</div></div>
   <div class="box" style="margin-bottom:12px">${totalChg?`เปลี่ยนแปลงจากจุดเริ่มต้น <b>${totalChg} แถว</b> ใน <b>${tblChg} ตาราง</b>`:'ยังไม่มีการเปลี่ยนแปลงจากจุดเริ่มต้น กดยื่นคำร้องหรือยืนยันคำร้อง แล้วกลับมาดูที่นี่'}</div>
   <div class="tabs2">${names.map(n=>`<button class="chip" aria-pressed="${S.tbl===n}" data-act="tbl" data-v="${n}">${n} (${DB[n].length})${cnt(n)?`<span class="dchip">+${cnt(n)}</span>`:''}</button>`).join('')}</div>
   <div class="panel tbl-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td class="empty" colspan="${sc.cols.length}">ไม่มีข้อมูล</td></tr>`}</tbody></table></div>`;
@@ -926,6 +953,7 @@ const H = {
   tab:b=>{S.tab=b.dataset.tab;S.filter=(S.user.role==='staff'&&b.dataset.tab==='appeals')?'pending':'all';render()},
   filter:b=>{S.filter=b.dataset.v;render()},
   tbl:b=>{S.tbl=b.dataset.v;render()},
+  resetDemo:()=>resetDemoData(),
   open:b=>appealModal(+b.dataset.id),
   close:closeModal,
   newAppeal:b=>newAppealModal(+b.dataset.id),
