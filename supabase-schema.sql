@@ -118,6 +118,20 @@ revoke all on function public.app_role() from public;
 revoke all on function public.is_staff() from public;
 grant execute on function public.app_user_id(), public.app_role(), public.is_staff() to authenticated;
 
+-- Check teacher/student enrollment without re-entering either table's RLS policy.
+create or replace function public.teacher_has_student(p_student_id bigint) returns boolean
+language sql stable security definer set search_path = public, auth
+as $$
+  select exists(
+    select 1 from public.enrollments en
+    join public.course_offerings o using(offering_id)
+    join public.teachers t using(teacher_id)
+    where en.student_id=p_student_id and t.user_id=public.app_user_id()
+  )
+$$;
+revoke all on function public.teacher_has_student(bigint) from public;
+grant execute on function public.teacher_has_student(bigint) to authenticated;
+
 -- Self registration creates a student profile only; elevated roles are assigned
 -- by a trusted administrator in the dashboard, never by browser metadata.
 create or replace function public.handle_new_auth_user() returns trigger
@@ -257,7 +271,7 @@ create policy "users_read_scoped" on public.users for select to authenticated
 using (auth_user_id = auth.uid() or public.is_staff());
 drop policy if exists "students_read_scoped" on public.students;
 create policy "students_read_scoped" on public.students for select to authenticated
-using (user_id = public.app_user_id() or public.is_staff() or public.app_role() = 'teacher');
+using (user_id = public.app_user_id() or public.is_staff() or (public.app_role() = 'teacher' and public.teacher_has_student(student_id)));
 drop policy if exists "teachers_read_authenticated" on public.teachers;
 create policy "teachers_read_authenticated" on public.teachers for select to authenticated using (true);
 drop policy if exists "departments_read_authenticated" on public.departments;
