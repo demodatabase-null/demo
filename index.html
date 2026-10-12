@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ระบบยื่นคำร้องขอตรวจสอบเกรด</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f6f9; --grid:#e1e7ee; --surface:#ffffff; --surface2:#f7f9fb;
+  --ink:#14213d; --muted:#5d6b82; --line:#d5dde7;
+  --accent:#14213d; --accent-ink:#ffffff; --focus:#1769e0;
+  --pk:#d62d2d; --fk:#1769e0;
+  --s-pending-bg:#fdf1d6; --s-pending:#8a5a00;
+  --s-review-bg:#dfeafd; --s-review:#124fa8;
+  --s-ok-bg:#dcf3e4; --s-ok:#13683a;
+  --s-no-bg:#fbe0e0; --s-no:#a11f1f;
+  --shadow:0 1px 0 rgba(20,33,61,.06);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1521; --grid:#18212f; --surface:#161e2d; --surface2:#1b2536;
+    --ink:#e8edf6; --muted:#9aa8bf; --line:#2a364b;
+    --accent:#e8edf6; --accent-ink:#0f1521; --focus:#6aa4ff;
+    --pk:#ff6b6b; --fk:#6aa4ff;
+    --s-pending-bg:#3a2f12; --s-pending:#f2c76a;
+    --s-review-bg:#15294a; --s-review:#8db8ff;
+    --s-ok-bg:#12331f; --s-ok:#7fd6a2;
+    --s-no-bg:#3b1a1a; --s-no:#ff9a9a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1521; --grid:#18212f; --surface:#161e2d; --surface2:#1b2536;
+  --ink:#e8edf6; --muted:#9aa8bf; --line:#2a364b;
+  --accent:#e8edf6; --accent-ink:#0f1521; --focus:#6aa4ff;
+  --pk:#ff6b6b; --fk:#6aa4ff;
+  --s-pending-bg:#3a2f12; --s-pending:#f2c76a;
+  --s-review-bg:#15294a; --s-review:#8db8ff;
+  --s-ok-bg:#12331f; --s-ok:#7fd6a2;
+  --s-no-bg:#3b1a1a; --s-no:#ff9a9a;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{
+  margin:0; color:var(--ink); background-color:var(--bg);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+  font-family:'IBM Plex Sans Thai','Noto Sans Thai',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:15px; line-height:1.6;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+h1,h2,h3{margin:0;line-height:1.3}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+pre{margin:0;padding:10px 12px;background:var(--surface2);border:1px solid var(--line);border-radius:6px;overflow-x:auto;font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:2px solid var(--ink)}
+.top .wrap{display:flex;align-items:center;gap:12px;min-height:56px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px}
+.brand{font-weight:700;font-size:16px;letter-spacing:.2px;margin-right:auto}
+.brand small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.who{display:flex;align-items:center;gap:8px;font-size:13px}
+.role{border:1.5px solid var(--ink);padding:0 8px;border-radius:4px;font-size:12px;font-weight:600}
+.btn{border:1.5px solid var(--ink);background:var(--surface);border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:500;transition:background .15s}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{opacity:.9}
+.btn.sm{padding:3px 10px;font-size:13px}
+.btn.ok{background:var(--s-ok);color:#fff;border-color:var(--s-ok)}
+.btn.no{background:var(--s-no);color:#fff;border-color:var(--s-no)}
+.btn.ghost{border-color:var(--line)}
+nav.tabs{background:var(--surface);border-bottom:1px solid var(--line)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto}
+nav.tabs button{border:0;background:none;padding:10px 14px;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;color:var(--muted);font-weight:500}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+.badge{display:inline-block;min-width:20px;padding:0 6px;margin-left:6px;border-radius:10px;background:var(--pk);color:#fff;font-size:12px;text-align:center}
+main{padding:22px 0 60px}
+.h-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.h-row h2{font-size:21px}
+.h-row p{margin:2px 0 0;color:var(--muted);font-size:13px}
+
+/* panels */
+.panel{background:var(--surface);border:1.5px solid var(--ink);border-radius:8px;box-shadow:var(--shadow)}
+.tbl-wrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-weight:600;font-size:13px;color:var(--muted);background:var(--surface2);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right}
+.mono{font-variant-numeric:tabular-nums}
+.empty{padding:34px 16px;text-align:center;color:var(--muted)}
+.pill{display:inline-block;padding:1px 10px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.p-pending{background:var(--s-pending-bg);color:var(--s-pending)}
+.p-reviewing{background:var(--s-review-bg);color:var(--s-review)}
+.p-approved{background:var(--s-ok-bg);color:var(--s-ok)}
+.p-rejected{background:var(--s-no-bg);color:var(--s-no)}
+.p-cancelled{background:var(--surface2);color:var(--muted);border:1px solid var(--line)}
+.p-cs1{background:var(--s-review-bg);color:var(--s-review)}
+.p-cs2{background:var(--s-ok-bg);color:var(--s-ok)}
+.p-cs3{background:var(--surface2);color:var(--muted);border:1px solid var(--line)}
+.grade{font-weight:700;font-size:16px}
+.old-g{text-decoration:line-through;color:var(--muted);font-weight:600}
+.new-g{color:var(--s-ok)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:3px 12px;cursor:pointer;font-size:13px}
+.chip[aria-pressed="true"]{border-color:var(--ink);background:var(--accent);color:var(--accent-ink)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.stat{background:var(--surface);border:1.5px solid var(--ink);border-radius:8px;padding:10px 14px}
+.stat b{display:block;font-size:26px;line-height:1.2}
+.stat span{font-size:13px;color:var(--muted)}
+
+/* login */
+.login{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:start;padding:44px 0}
+@media(max-width:820px){.login{grid-template-columns:1fr;padding:22px 0}}
+.login h1{font-size:34px;margin-bottom:10px}
+.login .lead{color:var(--muted);max-width:44ch;margin:0 0 18px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin-bottom:16px}
+.k-pk{color:var(--pk);font-weight:700}.k-fk{color:var(--fk);font-weight:700}
+.card{padding:20px}
+label{display:block;font-weight:600;font-size:13px;margin:12px 0 4px}
+input[type=text],input[type=password],select,textarea{width:100%;padding:8px 10px;border:1.5px solid var(--ink);border-radius:6px;background:var(--surface)}
+textarea{min-height:96px;resize:vertical}
+.demo{margin-top:16px;border-top:1px dashed var(--line);padding-top:12px}
+.demo p{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.demo .row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.err{color:var(--s-no);font-size:13px;margin-top:8px;min-height:18px}
+
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(10,15,28,.55);display:none;align-items:flex-start;justify-content:center;padding:max(18px,env(safe-area-inset-top,0px)) 14px 18px;overflow-y:auto;z-index:50}
+.ov.on{display:flex}
+.modal{background:var(--surface);border:2px solid var(--ink);border-radius:10px;width:min(680px,100%);padding:20px;animation:pop .16s ease-out}
+@keyframes pop{from{transform:translateY(8px);opacity:.4}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.modal{animation:none}}
+.modal h3{font-size:19px;margin-bottom:4px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:4px 12px;font-size:14px;margin:12px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.sec{margin-top:16px}
+.sec h4{margin:0 0 6px;font-size:14px}
+.box{border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--surface2)}
+.tl{list-style:none;margin:0;padding:0 0 0 4px}
+.tl li{position:relative;padding:0 0 10px 18px;font-size:14px;border-left:2px solid var(--line)}
+.tl li::before{content:"";position:absolute;left:-6px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--ink)}
+.tl li:last-child{border-left-color:transparent}
+.tl .by{color:var(--muted);font-size:12.5px}
+.files{display:flex;gap:6px;flex-wrap:wrap}
+.file{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 10px;font-size:13px}
+.file button{border:0;background:none;cursor:pointer;color:var(--s-no);font-weight:700}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:18px}
+.radios{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0}
+.radios label{display:flex;gap:6px;align-items:center;font-weight:500;margin:0}
+.hidden{display:none!important}
+.steps{display:flex;gap:6px;margin:12px 0 4px}
+.step{flex:1;border:1.5px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12.5px;color:var(--muted);text-align:center}
+.step.done{border-color:var(--s-ok);background:var(--s-ok-bg);color:var(--s-ok);font-weight:600}
+.step.now{border-color:var(--ink);background:var(--surface2);color:var(--ink);font-weight:600}
+.step.bad{border-color:var(--s-no);background:var(--s-no-bg);color:var(--s-no);font-weight:600}
+.errbox{border:1.5px solid var(--s-no);background:var(--s-no-bg);color:var(--s-no);border-radius:8px;padding:12px 14px;margin-top:12px}
+.errbox b{display:block;margin-bottom:4px}
+.errbox pre{background:var(--surface);color:var(--ink);margin-top:8px}
+
+/* notifications */
+.notif{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+.notif:last-child{border-bottom:0}
+.notif.unread{background:var(--s-review-bg)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--pk);margin-top:8px;flex:none}
+.notif:not(.unread) .dot{background:var(--line)}
+
+/* DB / ER / SQL */
+.tabs2{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.th-badge{font-size:10.5px;font-weight:700;margin-right:5px}
+.th-badge.pk{color:var(--pk)}.th-badge.fk{color:var(--fk)}
+tr.r-new td{background:var(--s-ok-bg)}
+tr.r-chg td{background:var(--s-pending-bg)}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;padding:0 8px;border-radius:999px;background:var(--surface);border:1px solid currentColor}
+tr.r-new .tag{color:var(--s-ok)}tr.r-chg .tag{color:var(--s-pending)}
+.dchip{margin-left:6px;font-size:11.5px;font-weight:700;color:var(--s-ok)}
+.chip[aria-pressed="true"] .dchip{color:inherit}
+.ent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.ent{padding:12px 14px}
+.ent h3{font-size:15px;margin-bottom:6px;border-bottom:1.5px solid var(--ink);padding-bottom:4px}
+.ent ul{list-style:none;margin:0;padding:0;font-size:13.5px}
+.ent li{padding:1px 0}
+.rel{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);font-size:14px}
+.rel:last-child{border-bottom:0}
+.rel .a{text-align:right;font-weight:600}.rel .c{font-weight:700;white-space:nowrap}
+.rel small{display:block;color:var(--muted);font-weight:400}
+.sqlcard{margin-bottom:12px;padding:12px 14px}
+.sqlcard .hd{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
+.sqlcard .hd b{font-size:14.5px}
+.sqlcard .who{color:var(--muted);font-size:12.5px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--accent);color:var(--accent-ink);padding:9px 18px;border-radius:8px;font-size:14px;z-index:80;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;text-align:center}
+.toast.on{opacity:1}
+footer{color:var(--muted);font-size:12.5px;text-align:center;padding:10px 0 30px}
+footer button{border:0;background:none;text-decoration:underline;cursor:pointer;color:inherit}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="ov" id="ov" role="dialog" aria-modal="true"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ============ SCHEMA (ตาม ER ทุกตาราง ทุกฟิลด์) ============ */
+const SCHEMA = {
+  User:{pk:'user_ID',cols:['user_ID','username','password_hash','role','email'],fk:{}},
+  Teachers:{pk:'teacher_ID',cols:['teacher_ID','First_Name','Last_Name','department_ID','user_ID'],fk:{department_ID:'Department',user_ID:'User'}},
+  Department:{pk:'department_ID',cols:['department_ID','department_name','faculty_name'],fk:{}},
+  student:{pk:'student_ID',cols:['student_ID','First_Name','Last_Name','study_year','department_ID','user_ID'],fk:{department_ID:'Department',user_ID:'User'}},
+  course:{pk:'course_ID',cols:['course_ID','course_code','course_name','course_credit'],fk:{}},
+  course_status:{pk:'course_status_id',cols:['course_status_id','status_name','description'],fk:{}},
+  course_offering:{pk:'offering_ID',cols:['offering_ID','course_ID','teacher_ID','semester','academic_year','course_status_id'],fk:{course_ID:'course',teacher_ID:'Teachers',course_status_id:'course_status'}},
+  enrollment:{pk:'enrollment_ID',cols:['enrollment_ID','offering_ID','student_ID','grade'],fk:{offering_ID:'course_offering',student_ID:'student'}},
+  grade_history:{pk:'grade_history_ID',cols:['grade_history_ID','appeal_ID','enrollment_ID','old_grade','new_grade','changed_by'],fk:{appeal_ID:'grade_appeals',enrollment_ID:'enrollment'}},
+  grade_appeals:{pk:'appeals_ID',cols:['appeals_ID','enrollment_ID','grade_at_request','reason','status'],fk:{enrollment_ID:'enrollment'}},
+  appeal_reviews:{pk:'review_id',cols:['review_id','reviewer_id','appeal_id','decision','new_grade'],fk:{reviewer_id:'User',appeal_id:'grade_appeals'}},
+  appeal_status_history:{pk:'history_ID',cols:['history_ID','appeal_ID','changed_by','old_status','new_status'],fk:{appeal_ID:'grade_appeals',changed_by:'User'}},
+  appeal_attachment:{pk:'attachment_ID',cols:['attachment_ID','appeal_ID','file_name','file_type'],fk:{appeal_ID:'grade_appeals',file_name:'(ติดป้าย FK ตามภาพ ER)'}},
+  notification:{pk:'notification_ID',cols:['notification_ID','appeal_ID','user_id','massage','is_read'],fk:{appeal_ID:'grade_appeals',user_id:'User'}}
+};
+const RELS = [
+  ['User','1','1','Teachers','user_ID'],
+  ['User','1','1','student','user_ID'],
+  ['Department','1','N','Teachers','department_ID'],
+  ['Department','1','N','student','department_ID'],
+  ['Teachers','1','N','course_offering','teacher_ID'],
+  ['course','1','N','course_offering','course_ID'],
+  ['course_status','1','N','course_offering','course_status_id'],
+  ['course_offering','1','N','enrollment','offering_ID'],
+  ['student','1','N','enrollment','student_ID'],
+  ['enrollment','1','N','grade_history','enrollment_ID'],
+  ['enrollment','1','N','grade_appeals','enrollment_ID'],
+  ['User','1','N','grade_history','changed_by'],
+  ['grade_appeals','1','N','grade_history','appeal_ID'],
+  ['grade_appeals','1','1','appeal_reviews','appeal_id'],
+  ['User','1','N','appeal_reviews','reviewer_id'],
+  ['grade_appeals','1','N','appeal_status_history','appeal_ID'],
+  ['User','1','N','appeal_status_history','changed_by'],
+  ['grade_appeals','1','N','appeal_attachment','appeal_ID'],
+  ['grade_appeals','1','N','notification','appeal_ID'],
+  ['User','1','N','notification','user_id']
+];
+
+/* ============ SEED DATA ============ */
+function hash(s){let h=5381;for(const c of s){h=((h<<5)+h+c.charCodeAt(0))>>>0}return 'sha$'+h.toString(16).padStart(8,'0')}
+function seed(){
+  const P=hash('1234');
+  return {
+    Department:[
+      {department_ID:1,department_name:'วิทยาการคอมพิวเตอร์',faculty_name:'คณะวิทยาศาสตร์'},
+      {department_ID:2,department_name:'วิศวกรรมคอมพิวเตอร์',faculty_name:'คณะวิศวกรรมศาสตร์'},
+      {department_ID:3,department_name:'การบัญชี',faculty_name:'คณะบริหารธุรกิจ'}],
+    User:[
+      {user_ID:1,username:'staff01',password_hash:P,role:'staff',email:'registrar@uni.ac.th'},
+      {user_ID:2,username:'somchai.j',password_hash:P,role:'teacher',email:'somchai.j@uni.ac.th'},
+      {user_ID:3,username:'malee.r',password_hash:P,role:'teacher',email:'malee.r@uni.ac.th'},
+      {user_ID:4,username:'6401001',password_hash:P,role:'student',email:'6401001@student.uni.ac.th'},
+      {user_ID:5,username:'6401002',password_hash:P,role:'student',email:'6401002@student.uni.ac.th'},
+      {user_ID:6,username:'6401003',password_hash:P,role:'student',email:'6401003@student.uni.ac.th'}],
+    Teachers:[
+      {teacher_ID:1,First_Name:'สมชาย',Last_Name:'ใจดี',department_ID:1,user_ID:2},
+      {teacher_ID:2,First_Name:'มาลี',Last_Name:'รักเรียน',department_ID:2,user_ID:3}],
+    student:[
+      {student_ID:6401001,First_Name:'ธนกร',Last_Name:'วงศ์สว่าง',study_year:3,department_ID:1,user_ID:4},
+      {student_ID:6401002,First_Name:'พิมพ์ชนก',Last_Name:'ศรีสุข',study_year:3,department_ID:1,user_ID:5},
+      {student_ID:6401003,First_Name:'กฤษฎา',Last_Name:'มั่นคง',study_year:2,department_ID:2,user_ID:6}],
+    course:[
+      {course_ID:1,course_code:'CS101',course_name:'การเขียนโปรแกรมเบื้องต้น',course_credit:3},
+      {course_ID:2,course_code:'CS201',course_name:'โครงสร้างข้อมูลและอัลกอริทึม',course_credit:3},
+      {course_ID:3,course_code:'CS305',course_name:'ระบบฐานข้อมูล',course_credit:3},
+      {course_ID:4,course_code:'CPE210',course_name:'ระบบปฏิบัติการ',course_credit:3},
+      {course_ID:5,course_code:'MA101',course_name:'แคลคูลัส 1',course_credit:4}],
+    course_status:[
+      {course_status_id:1,status_name:'กำลังเรียน',description:'รายวิชากำลังเปิดสอน ยังไม่ประกาศเกรด'},
+      {course_status_id:2,status_name:'ประกาศเกรดแล้ว',description:'ประกาศผลแล้ว ยื่นคำร้องตรวจสอบเกรดได้'},
+      {course_status_id:3,status_name:'ปิดรายวิชา',description:'หมดเขตยื่นคำร้อง'}],
+    course_offering:[
+      {offering_ID:1,course_ID:1,teacher_ID:1,semester:2,academic_year:2568,course_status_id:2},
+      {offering_ID:2,course_ID:2,teacher_ID:1,semester:2,academic_year:2568,course_status_id:2},
+      {offering_ID:3,course_ID:3,teacher_ID:1,semester:1,academic_year:2569,course_status_id:1},
+      {offering_ID:4,course_ID:4,teacher_ID:2,semester:2,academic_year:2568,course_status_id:2},
+      {offering_ID:5,course_ID:5,teacher_ID:2,semester:1,academic_year:2568,course_status_id:3}],
+    enrollment:[
+      {enrollment_ID:1,offering_ID:1,student_ID:6401001,grade:'B+'},
+      {enrollment_ID:2,offering_ID:2,student_ID:6401001,grade:'C+'},
+      {enrollment_ID:3,offering_ID:3,student_ID:6401001,grade:null},
+      {enrollment_ID:4,offering_ID:1,student_ID:6401002,grade:'C'},
+      {enrollment_ID:5,offering_ID:2,student_ID:6401002,grade:'B'},
+      {enrollment_ID:6,offering_ID:4,student_ID:6401003,grade:'D+'},
+      {enrollment_ID:7,offering_ID:5,student_ID:6401003,grade:'F'},
+      {enrollment_ID:8,offering_ID:1,student_ID:6401003,grade:'B+'},
+      {enrollment_ID:9,offering_ID:3,student_ID:6401002,grade:null}],
+    grade_appeals:[
+      {appeals_ID:1,enrollment_ID:1,grade_at_request:'B',reason:'คะแนนรวมในใบคะแนนสูงกว่าเกณฑ์เกรด B+ แต่ได้รับเกรด B คาดว่ารวมคะแนนผิดพลาด',status:'approved'},
+      {appeals_ID:2,enrollment_ID:5,grade_at_request:'B',reason:'ข้อสอบกลางภาคข้อ 4 ตรวจให้คะแนนไม่ครบตามเฉลย ขอให้ตรวจสอบอีกครั้ง',status:'pending'},
+      {appeals_ID:3,enrollment_ID:6,grade_at_request:'D+',reason:'ขอตรวจสอบคะแนนรวมใหม่ เนื่องจากขาดอีก 1 คะแนนจะได้เกรด C',status:'reviewing'}],
+    appeal_reviews:[
+      {review_id:1,reviewer_id:2,appeal_id:1,decision:'approved',new_grade:'B+'}],
+    appeal_status_history:[
+      {history_ID:1,appeal_ID:1,changed_by:4,old_status:null,new_status:'pending'},
+      {history_ID:2,appeal_ID:1,changed_by:1,old_status:'pending',new_status:'reviewing'},
+      {history_ID:3,appeal_ID:1,changed_by:2,old_status:'reviewing',new_status:'approved'},
+      {history_ID:4,appeal_ID:2,changed_by:5,old_status:null,new_status:'pending'},
+      {history_ID:5,appeal_ID:3,changed_by:6,old_status:null,new_status:'pending'},
+      {history_ID:6,appeal_ID:3,changed_by:1,old_status:'pending',new_status:'reviewing'}],
+    appeal_attachment:[
+      {attachment_ID:1,appeal_ID:1,file_name:'transcript_cs101.pdf',file_type:'pdf'},
+      {attachment_ID:2,appeal_ID:3,file_name:'exam_sheet.jpg',file_type:'jpg'}],
+    grade_history:[
+      {grade_history_ID:1,appeal_ID:1,enrollment_ID:1,old_grade:'B',new_grade:'B+',changed_by:2}],
+    notification:[
+      {notification_ID:1,appeal_ID:1,user_id:4,massage:'คำร้อง #1 (CS101) ได้รับการอนุมัติ เกรดเปลี่ยนจาก B เป็น B+',is_read:true},
+      {notification_ID:2,appeal_ID:2,user_id:1,massage:'มีคำร้องใหม่ #2 จาก พิมพ์ชนก ศรีสุข วิชา CS201 รอเจ้าหน้าที่ยืนยัน',is_read:false},
+      {notification_ID:3,appeal_ID:3,user_id:3,massage:'คำร้อง #3 จาก กฤษฎา มั่นคง วิชา CPE210 ผ่านการยืนยันจากเจ้าหน้าที่ รอพิจารณา',is_read:false},
+      {notification_ID:4,appeal_ID:3,user_id:6,massage:'เจ้าหน้าที่ยืนยันคำร้อง #3 (CPE210) แล้ว ส่งต่ออาจารย์ผู้สอน',is_read:false}]
+  };
+}
+
+/* ============ STATE & HELPERS ============ */
+let DB = seed();
+let BASE = JSON.parse(JSON.stringify(DB));   // จุดเริ่มต้น (ก่อนทำ) สำหรับเทียบการเปลี่ยนแปลง
+let SQL = [];                                 // บันทึก SQL เบื้องหลัง
+let TX = null;
+const S = {user:null,tab:null,filter:'all',tbl:'User',files:[],ruleOut:''};
+const GRADES = ['A','B+','B','C+','C','D+','D','F'];
+const STATUS = {pending:'รอเจ้าหน้าที่ยืนยัน',reviewing:'รออาจารย์พิจารณา',approved:'อนุมัติแก้ไขเกรด',rejected:'ไม่อนุมัติ',cancelled:'ยกเลิกโดยนักศึกษา'};
+const ROLE_TH = {student:'นักศึกษา',teacher:'อาจารย์',staff:'เจ้าหน้าที่'};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const get = (t,id) => DB[t].find(r => r[SCHEMA[t].pk] == id);
+const nid = t => Math.max(0,...DB[t].map(r => r[SCHEMA[t].pk])) + 1;
+const pill = s => `<span class="pill p-${s}">${STATUS[s]}</span>`;
+const csPill = id => `<span class="pill p-cs${id}">${esc(get('course_status',id).status_name)}</span>`;
+
+/* ---- SQL builder / transaction log ---- */
+const q = v => v===null||v===undefined ? 'NULL' : typeof v==='number' ? String(v) : typeof v==='boolean' ? (v?'TRUE':'FALSE') : `'${String(v).replace(/'/g,"''")}'`;
+const insSql = (t,row) => `INSERT INTO ${t} (${Object.keys(row).join(', ')})\nVALUES (${Object.values(row).map(q).join(', ')});`;
+function beginTx(){TX=['START TRANSACTION;']}
+function rec(s){if(TX)TX.push(s)}
+function endTx(title,ok=true,note=''){
+  if(!TX) return;
+  TX.push(ok?'COMMIT;':'ROLLBACK;');
+  SQL.push({title,ok,note,who:`${personName(S.user.user_ID)} (${ROLE_TH[S.user.role]})`,stmts:TX});
+  TX=null;
+}
+function dbInsert(t,row){DB[t].push(row);rec(insSql(t,row));return row}
+function setCol(t,id,col,val){get(t,id)[col]=val;rec(`UPDATE ${t}\nSET ${col} = ${q(val)}\nWHERE ${SCHEMA[t].pk} = ${q(id)};`)}
+function addHistory(aid,o,n,by){return dbInsert('appeal_status_history',{history_ID:nid('appeal_status_history'),appeal_ID:aid,changed_by:by,old_status:o,new_status:n})}
+function notify(uid,aid,msg){return dbInsert('notification',{notification_ID:nid('notification'),appeal_ID:aid,user_id:uid,massage:msg,is_read:false})}
+
+/* ---- joins ---- */
+function ctx(enr){
+  const off=get('course_offering',enr.offering_ID);
+  return {enr,off,c:get('course',off.course_ID),t:get('Teachers',off.teacher_ID),
+          st:get('course_status',off.course_status_id),s:get('student',enr.student_ID)};
+}
+function personName(uid){
+  const t=DB.Teachers.find(x=>x.user_ID==uid); if(t) return `อ.${t.First_Name} ${t.Last_Name}`;
+  const s=DB.student.find(x=>x.user_ID==uid); if(s) return `${s.First_Name} ${s.Last_Name}`;
+  return 'เจ้าหน้าที่ทะเบียน';
+}
+const myStudent = () => DB.student.find(s=>s.user_ID==S.user.user_ID);
+const myTeacher = () => DB.Teachers.find(t=>t.user_ID==S.user.user_ID);
+const appealCtx = a => ctx(get('enrollment',a.enrollment_ID));
+function visibleAppeals(){
+  const u=S.user;
+  return DB.grade_appeals.filter(a=>{
+    const c=appealCtx(a);
+    if(u.role==='student') return c.s.user_ID==u.user_ID;
+    if(u.role==='teacher') return c.t.user_ID==u.user_ID;
+    return true;
+  });
+}
+const unread = () => DB.notification.filter(n=>n.user_id==S.user.user_ID && !n.is_read).length;
+function needsMe(a){const r=S.user.role;if(r==='staff')return a.status==='pending';if(r==='teacher')return a.status==='reviewing';return false}
+let tt;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2800)}
+function openModal(h){$('#modal').innerHTML=h;$('#ov').classList.add('on')}
+function closeModal(){$('#ov').classList.remove('on');S.files=[]}
+
+/* ---- business rules (สิ่งที่ฐานข้อมูลต้องปฏิเสธ) ---- */
+function validateAppeal(enr){
+  const off=get('course_offering',enr.offering_ID);
+  const dupAp=DB.grade_appeals.find(a=>a.enrollment_ID==enr.enrollment_ID && a.status!=='cancelled');
+  if(dupAp)
+    return {rule:'ห้ามมีคำร้องซ้ำของวิชาเดิมที่ยังไม่ยกเลิก',code:'ERROR 1644 (45000)',
+      msg:`มีคำร้อง #${dupAp.appeals_ID} ของวิชานี้ที่ยังไม่ยกเลิกอยู่แล้ว (status = ${dupAp.status})`};
+  if(off.course_status_id!=2)
+    return {rule:'ยื่นได้เฉพาะวิชาที่ประกาศเกรดแล้ว (course_status_id = 2)',code:'ERROR 1644 (45000)',
+      msg:`ยื่นคำร้องไม่ได้ เพราะรายวิชานี้มี course_status_id = ${off.course_status_id} (${get('course_status',off.course_status_id).status_name})`};
+  if(enr.grade===null||enr.grade===undefined)
+    return {rule:'ต้องมีเกรดจึงจะยื่นได้',code:'ERROR 1048 (23000)',msg:`Column 'grade_at_request' cannot be null`};
+  return null;
+}
+
+/* ---- snapshot diff ---- */
+function diffRows(t){
+  const pk=SCHEMA[t].pk, m=new Map(BASE[t].map(r=>[r[pk],JSON.stringify(r)]));
+  return DB[t].map(r=>{const b=m.get(r[pk]);return b===undefined?'new':(b!==JSON.stringify(r)?'chg':'')});
+}
+
+/* ============ LOGIN ============ */
+function loginView(){
+  const acc=(u,l)=>`<button type="button" class="btn sm ghost" data-act="quick" data-u="${u}">${l}</button>`;
+  return `<div class="wrap"><div class="login">
+    <div>
+      <h1>ระบบยื่นคำร้อง<br>ขอตรวจสอบเกรด</h1>
+      <p class="lead">นักศึกษายื่นคำร้องพร้อมแนบหลักฐาน เจ้าหน้าที่ตรวจและกดยืนยัน แล้วส่งต่ออาจารย์ผู้สอนกดยืนยันผลพิจารณา ทุกขั้นตอนถูกบันทึกประวัติและแจ้งเตือนผู้เกี่ยวข้อง</p>
+      <div class="legend"><span><span class="k-pk">PK</span> คีย์หลัก</span><span><span class="k-fk">FK</span> คีย์นอก</span><span>14 ตารางตามแผนภาพ ER</span></div>
+    </div>
+    <div class="panel card">
+      <form id="lf" autocomplete="off">
+        <label for="un">ชื่อผู้ใช้ (username)</label><input id="un" type="text" required>
+        <label for="pw">รหัสผ่าน (password)</label><input id="pw" type="password" required>
+        <div class="err" id="lerr" role="alert"></div>
+        <button class="btn primary" style="width:100%;margin-top:6px" type="submit">เข้าสู่ระบบ</button>
+      </form>
+      <div class="demo">
+        <p>บัญชีทดลอง (รหัสผ่านทุกบัญชี 1234)</p>
+        <div class="row">${acc('6401001','นักศึกษา ธนกร')}${acc('6401002','นักศึกษา พิมพ์ชนก')}${acc('6401003','นักศึกษา กฤษฎา')}</div>
+        <div class="row">${acc('somchai.j','อาจารย์สมชาย')}${acc('malee.r','อาจารย์มาลี')}${acc('staff01','เจ้าหน้าที่')}</div>
+      </div>
+    </div>
+  </div></div>`;
+}
+function doLogin(u,p){
+  const user=DB.User.find(x=>x.username===u && x.password_hash===hash(p));
+  if(!user){$('#lerr').textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง ลองใช้บัญชีทดลองด้านล่าง';return}
+  S.user=user; S.filter=user.role==='staff'?'pending':'all';
+  S.tab={student:'grades',teacher:'appeals',staff:'appeals'}[user.role];
+  render();
+}
+
+/* ============ SHELL ============ */
+function tabsFor(role){
+  const n=unread(); const nb=n?`<span class="badge">${n}</span>`:'';
+  const tail=[['report','รายงานสรุป'],['sql','SQL เบื้องหลัง'],['db','ฐานข้อมูล']];
+  if(role==='student') return [['grades','ประกาศเกรด'],['appeals','คำร้องของฉัน'],['notif','การแจ้งเตือน'+nb],['rules','ทดสอบกฎระบบ'],...tail];
+  if(role==='teacher') return [['appeals','คำร้องที่ต้องพิจารณา'],['grades','ประกาศเกรด'],['courses','รายวิชาที่สอน'],['notif','การแจ้งเตือน'+nb],...tail];
+  return [['appeals','จัดการคำร้อง'],['grades','ประกาศเกรด'],['offerings','รายวิชาเปิดสอน'],['notif','การแจ้งเตือน'+nb],...tail,['er','โครงสร้าง ER']];
+}
+function render(){
+  if(!S.user){$('#app').innerHTML=loginView();return}
+  const tabs=tabsFor(S.user.role);
+  const views={grades:vGrades,appeals:vAppeals,notif:vNotif,courses:vCourses,offerings:vOfferings,db:vDb,er:vEr,report:vReport,sql:vSql,rules:vRules};
+  $('#app').innerHTML=`
+  <header class="top"><div class="wrap">
+    <div class="brand">ระบบยื่นคำร้องขอตรวจสอบเกรด<small>Grade Appeal System</small></div>
+    <div class="who"><span>${esc(personName(S.user.user_ID))}</span><span class="role">${ROLE_TH[S.user.role]}</span>
+    <button class="btn sm" data-act="logout">ออกจากระบบ</button></div>
+  </div></header>
+  <nav class="tabs"><div class="wrap" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${S.tab===k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div></nav>
+  <main><div class="wrap">${(views[S.tab]||vGrades)()}</div></main>
+  <footer><button data-act="reset">รีเซ็ตข้อมูลเดโม</button></footer>`;
+}
+
+/* ============ GRADE ANNOUNCEMENT ============ */
+function eligibleEnrollments(){
+  const me=myStudent();
+  return DB.enrollment.filter(e=>e.student_ID==me.student_ID && e.grade && get('course_offering',e.offering_ID).course_status_id==2 && !DB.grade_appeals.some(a=>a.enrollment_ID==e.enrollment_ID && a.status!=='cancelled'));
+}
+function gradeCell(r){
+  const ap=DB.grade_appeals.filter(a=>a.enrollment_ID==r.enr.enrollment_ID).sort((x,y)=>y.appeals_ID-x.appeals_ID)[0];
+  const g=r.enr.grade;
+  if(g===null||g===undefined) return {html:'<span class="grade" style="color:var(--muted)">—</span>',note:'<span style="color:var(--muted);font-size:13px">ยังไม่ประกาศเกรด</span>',ap};
+  let html=`<span class="grade">${g}</span>`, note='';
+  if(ap){
+    if(ap.status==='approved'){html=`<span class="old-g">${ap.grade_at_request}</span> → <span class="grade new-g">${g}</span>`;note='<span class="pill p-approved">แก้ไขเกรดแล้ว</span>'}
+    else if(ap.status==='rejected'){note='<span class="pill p-rejected">ไม่อนุมัติ · คงเกรดเดิม</span>'}
+    else note=`<span class="pill p-${ap.status}">${STATUS[ap.status]}</span>`;
+  }
+  return {html,note,ap};
+}
+function vGrades(){
+  const u=S.user; let rows,sub,hint='',stats='';
+  if(u.role==='student'){
+    const me=myStudent();
+    rows=DB.enrollment.filter(e=>e.student_ID==me.student_ID);
+    sub=`${esc(me.First_Name)} ${esc(me.Last_Name)} · รหัส ${me.student_ID} · ชั้นปีที่ ${me.study_year}`;
+    hint='เมื่อประกาศเกรดแล้ว กด “ยื่นคำร้องใหม่” เพื่อเลือกวิชาและส่งให้เจ้าหน้าที่และอาจารย์ผู้สอนตรวจสอบ ถ้าอนุมัติเกรดจะถูกแก้ไข ถ้าไม่อนุมัติจะคงเกรดเดิม';
+    const GP={'A':4,'B+':3.5,'B':3,'C+':2.5,'C':2,'D+':1.5,'D':1,'F':0};
+    let pts=0,cr=0; rows.forEach(e=>{if(e.grade&&e.grade in GP){const cc=get('course',get('course_offering',e.offering_ID).course_ID).course_credit;pts+=GP[e.grade]*cc;cr+=cc}});
+    const gpa=cr?(pts/cr).toFixed(2):'—';
+    const pub=rows.filter(e=>e.grade&&get('course_offering',e.offering_ID).course_status_id==2).length;
+    const done=rows.filter(e=>DB.grade_appeals.some(a=>a.enrollment_ID==e.enrollment_ID && a.status!=='cancelled')).length;
+    stats=`<div class="stats"><div class="stat"><b>${rows.length}</b><span>วิชาที่ลงทะเบียน</span></div><div class="stat"><b>${gpa}</b><span>เกรดเฉลี่ย (GPA)</span></div><div class="stat"><b>${pub}</b><span>ประกาศเกรดแล้ว</span></div><div class="stat"><b>${done}</b><span>ยื่นคำร้องแล้ว</span></div><div class="stat"><b>${eligibleEnrollments().length}</b><span>ยื่นคำร้องได้</span></div></div>`;
+  } else if(u.role==='teacher'){
+    const t=myTeacher();
+    rows=DB.enrollment.filter(e=>get('course_offering',e.offering_ID).teacher_ID==t.teacher_ID);
+    sub='นักศึกษาในรายวิชาที่คุณสอน';
+    hint='เกรดที่ถูกแก้ไขจากคำร้องจะแสดงเกรดเดิมขีดฆ่าและเกรดใหม่';
+  } else { rows=DB.enrollment; sub='ทุกรายวิชาและนักศึกษา'; }
+  rows=rows.map(ctx);
+  const showS=u.role!=='student';
+  const body=rows.map(r=>{
+    const gc=gradeCell(r), ap=gc.ap;
+    let act='<span style="color:var(--muted)">—</span>';
+    if(ap&&(ap.status!=='cancelled'||u.role!=='student')) act=`<button class="btn sm" data-act="open" data-id="${ap.appeals_ID}">ดูคำร้อง #${ap.appeals_ID}</button>`;
+    else if(u.role==='student'){
+      if(r.off.course_status_id==2 && r.enr.grade) act=`<button class="btn sm primary" data-act="newAppeal" data-id="${r.enr.enrollment_ID}">ยื่นคำร้อง</button>`;
+      else if(r.off.course_status_id==3) act='<span style="color:var(--muted);font-size:13px">หมดเขตยื่นคำร้อง</span>';
+    }
+    return `<tr><td class="mono">${esc(r.c.course_code)}</td><td>${esc(r.c.course_name)}</td><td style="white-space:nowrap;font-size:18px">${gc.html}</td>
+    <td>${showS?esc(r.s.First_Name)+' '+esc(r.s.Last_Name):'อ.'+esc(r.t.First_Name)+' '+esc(r.t.Last_Name)}</td>
+    <td class="num">${r.c.course_credit}</td><td class="mono">${r.off.semester}/${r.off.academic_year}</td><td>${csPill(r.off.course_status_id)}</td>
+    <td>${gc.note}</td><td>${act}</td></tr>`}).join('');
+  return `<div class="h-row"><div><h2>ประกาศเกรด</h2><p>${sub}</p></div>${u.role==='student'?'<button class="btn primary" data-act="newAppealPick">+ ยื่นคำร้องใหม่</button>':''}</div>
+  ${stats}${hint?`<div class="box" style="margin-bottom:12px">${hint}</div>`:''}
+  <div class="panel tbl-wrap"><table><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>เกรดที่ได้</th><th>${showS?'นักศึกษา':'อาจารย์ผู้สอน'}</th><th class="num">หน่วยกิต</th><th>ภาคเรียน</th><th>สถานะรายวิชา</th><th>ผลคำร้อง</th><th></th></tr></thead><tbody>${body||'<tr><td class="empty" colspan="9">ไม่มีข้อมูล</td></tr>'}</tbody></table></div>`;
+}
+
+/* ============ SUBMIT APPEAL (ฟังก์ชันหลัก) ============ */
+function showEnrInfo(){
+  const sel=$('#enrSel'), box=$('#enrInfo'); if(!sel||!box) return;
+  if(!sel.value){box.innerHTML='<span style="color:var(--muted)">เลือกวิชาจากรายการด้านบน ระบบจะแสดงรายละเอียดให้</span>';return}
+  const r=ctx(get('enrollment',+sel.value));
+  box.innerHTML=`<div><b>${esc(r.c.course_code)} ${esc(r.c.course_name)}</b></div><div>ภาคเรียน ${r.off.semester}/${r.off.academic_year} · อาจารย์ผู้สอน อ.${esc(r.t.First_Name)} ${esc(r.t.Last_Name)}</div><div>เกรดปัจจุบัน <span class="grade">${r.enr.grade}</span></div><div style="color:var(--muted);font-size:13px;margin-top:4px">เมื่อกดส่ง เจ้าหน้าที่และอาจารย์ผู้สอนจะเห็นคำร้องนี้ทันที</div>`;
+}
+function newAppealModal(eid){
+  const el=eligibleEnrollments(); S.files=[];
+  if(!el.length){
+    openModal(`<h3>ยื่นคำร้องขอตรวจสอบเกรด</h3><div class="box" style="margin-top:10px">ตอนนี้ไม่มีวิชาที่ยื่นคำร้องได้ วิชาที่ยื่นไปแล้วจะไม่แสดงในรายการนี้ และต้องเป็นวิชาที่ประกาศเกรดแล้วเท่านั้น</div><div class="actions"><button class="btn" data-act="close">ปิด</button></div>`);
+    return;
+  }
+  const opts=el.map(e=>{const r=ctx(e);return `<option value="${e.enrollment_ID}" ${e.enrollment_ID==eid?'selected':''}>${esc(r.c.course_code)} ${esc(r.c.course_name)} (${r.off.semester}/${r.off.academic_year}) · เกรด ${e.grade}</option>`}).join('');
+  openModal(`<h3>ยื่นคำร้องขอตรวจสอบเกรด</h3>
+  <label for="enrSel">เลือกวิชาที่ต้องการยื่น</label>
+  <select id="enrSel"><option value="" ${eid?'':'selected'} disabled>— เลือกวิชา —</option>${opts}</select>
+  <div style="font-size:12.5px;color:var(--muted);margin-top:4px">แสดงเฉพาะวิชาที่ประกาศเกรดแล้วและยังไม่เคยยื่นคำร้อง</div>
+  <div class="box" id="enrInfo" style="margin-top:10px"></div>
+  <label for="reason">เหตุผลที่ขอตรวจสอบ</label>
+  <textarea id="reason" placeholder="อธิบายว่าเกรดควรได้รับการตรวจสอบเพราะอะไร เช่น คะแนนรวมไม่ตรงกับใบคะแนน"></textarea>
+  <label>หลักฐานประกอบ (ไม่บังคับ)</label>
+  <div class="files" id="fileList"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+    <label class="btn sm" for="fileIn" style="margin:0;font-weight:500;cursor:pointer">เลือกไฟล์</label>
+    <input id="fileIn" type="file" multiple class="hidden">
+    <button type="button" class="btn sm ghost" data-act="sampleFile">เพิ่มไฟล์ตัวอย่าง</button>
+  </div>
+  <div id="modalErr"></div>
+  <div class="actions"><button class="btn" data-act="close">ยกเลิก</button><button class="btn primary" data-act="submitAppeal">ส่งคำร้อง</button></div>`);
+  drawFiles(); showEnrInfo();
+}
+function drawFiles(){
+  const el=$('#fileList'); if(!el) return;
+  el.innerHTML=S.files.length?S.files.map((f,i)=>`<span class="file">${esc(f.file_name)} <button data-act="rmFile" data-id="${i}" aria-label="ลบไฟล์">×</button></span>`).join(''):'<span style="color:var(--muted);font-size:13px">ยังไม่ได้แนบไฟล์</span>';
+}
+function errBoxHtml(err,sqlText,extra=''){
+  return `<div class="errbox"><b>ระบบปฏิเสธรายการ · ${esc(err.rule)}</b><div class="mono">${esc(err.code)}: ${esc(err.msg)}</div>${sqlText?`<pre>${esc(sqlText)}\n-- ผลลัพธ์: ROLLBACK ไม่มีข้อมูลถูกเปลี่ยนแปลง</pre>`:''}${extra}</div>`;
+}
+function submitAppeal(){
+  const sel=$('#enrSel'); if(!sel||!sel.value){toast('กรุณาเลือกวิชาที่ต้องการยื่น');return}
+  const reason=$('#reason').value.trim();
+  if(reason.length<10){toast('กรุณาระบุเหตุผลอย่างน้อย 10 ตัวอักษร');return}
+  const enr=get('enrollment',+sel.value), c=ctx(enr);
+  const aid=nid('grade_appeals');
+  const row={appeals_ID:aid,enrollment_ID:enr.enrollment_ID,grade_at_request:enr.grade,reason,status:'pending'};
+  beginTx();
+  const err=validateAppeal(enr);
+  if(err){
+    rec(insSql('grade_appeals',row));
+    $('#modalErr').innerHTML=errBoxHtml(err,'');
+    endTx(`ยื่นคำร้อง ${c.c.course_code} (ถูกปฏิเสธ)`,false,err.msg);
+    toast('ระบบปฏิเสธรายการนี้');
+    return;
+  }
+  dbInsert('grade_appeals',row);
+  S.files.forEach(f=>dbInsert('appeal_attachment',{attachment_ID:nid('appeal_attachment'),appeal_ID:aid,file_name:f.file_name,file_type:f.file_type}));
+  addHistory(aid,null,'pending',S.user.user_ID);
+  DB.User.filter(x=>x.role==='staff').forEach(x=>notify(x.user_ID,aid,`มีคำร้องใหม่ #${aid} จาก ${c.s.First_Name} ${c.s.Last_Name} วิชา ${c.c.course_code} รอเจ้าหน้าที่ยืนยัน`));
+  notify(c.t.user_ID,aid,`นักศึกษา ${c.s.First_Name} ${c.s.Last_Name} ยื่นคำร้อง #${aid} วิชา ${c.c.course_code} (รอเจ้าหน้าที่ยืนยันก่อนส่งให้พิจารณา)`);
+  endTx(`นักศึกษายื่นคำร้อง #${aid} (${c.c.course_code})`);
+  closeModal(); S.tab='appeals'; render(); appealModal(aid);
+  toast(`ส่งคำร้อง #${aid} แล้ว เจ้าหน้าที่และอาจารย์จะเห็นคำร้องนี้`);
+}
+
+/* ============ APPEAL LIST ============ */
+function statsHtml(list){
+  const all=list||DB.grade_appeals;const n=k=>all.filter(a=>a.status===k).length;
+  return `<div class="stats"><div class="stat"><b>${all.length}</b><span>คำร้องทั้งหมด</span></div>${Object.keys(STATUS).map(k=>`<div class="stat"><b>${n(k)}</b><span>${STATUS[k]}</span></div>`).join('')}</div>`;
+}
+function vAppeals(){
+  const u=S.user, all=visibleAppeals();
+  const list=S.filter==='all'?all:all.filter(a=>a.status===S.filter);
+  const chips=['all',...Object.keys(STATUS)].map(k=>{
+    const n=k==='all'?all.length:all.filter(a=>a.status===k).length;
+    return `<button class="chip" aria-pressed="${S.filter===k}" data-act="filter" data-v="${k}">${k==='all'?'ทั้งหมด':STATUS[k]} (${n})</button>`}).join('');
+  const title={student:'คำร้องของฉัน',teacher:'คำร้องที่ต้องพิจารณา',staff:'จัดการคำร้อง'}[u.role];
+  const subt={teacher:'คำร้องที่เจ้าหน้าที่ยืนยันแล้วจะรอคุณพิจารณา เฉพาะรายวิชาที่คุณสอน',staff:'ตรวจเหตุผลและหลักฐาน แล้วกดยืนยันเพื่อส่งต่ออาจารย์',student:'ติดตามสถานะคำร้องที่ยื่นไว้'}[u.role];
+  return `<div class="h-row"><div><h2>${title}</h2><p>${subt}</p></div></div>
+  ${u.role==='student'?'<div style="margin-bottom:12px"><button class="btn primary" data-act="newAppealPick">+ ยื่นคำร้องใหม่</button></div>':''}${u.role==='staff'?statsHtml():''}<div class="chips">${chips}</div>${appealTable(list,u.role!=='student')}`;
+}
+function appealTable(list,showStudent){
+  if(!list.length) return `<div class="panel empty">ไม่มีคำร้องในหมวดนี้${S.user.role==='student'?' ไปที่ประกาศเกรดเพื่อยื่นคำร้อง':''}</div>`;
+  return `<div class="panel tbl-wrap"><table><thead><tr><th>#</th><th>รายวิชา</th>${showStudent?'<th>นักศึกษา</th>':''}<th>เกรดตอนยื่น</th><th>เกรดปัจจุบัน</th><th>สถานะ</th><th></th></tr></thead><tbody>
+  ${list.map(a=>{const c=appealCtx(a);return `<tr><td class="mono">${a.appeals_ID}</td><td>${esc(c.c.course_code)} <span style="color:var(--muted)">${esc(c.c.course_name)}</span></td>
+  ${showStudent?`<td>${esc(c.s.First_Name)} ${esc(c.s.Last_Name)}</td>`:''}<td class="grade">${a.grade_at_request}</td><td class="grade">${c.enr.grade}</td><td>${pill(a.status)}</td>
+  <td><button class="btn sm ${needsMe(a)?'primary':''}" data-act="open" data-id="${a.appeals_ID}">${needsMe(a)?'ตรวจสอบและยืนยัน':'ดูรายละเอียด'}</button>${S.user.role==='student'&&['pending','reviewing'].includes(a.status)?` <button class="btn sm no" data-act="cancelList" data-id="${a.appeals_ID}">ยกเลิก</button>`:''}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+/* ============ APPEAL DETAIL ============ */
+function progressHtml(a){
+  const rev=DB.appeal_reviews.some(r=>r.appeal_id==a.appeals_ID), st=a.status;
+  if(st==='cancelled') return `<div class="steps"><div class="step done">1 ยื่นคำร้อง</div><div class="step bad">2 ยกเลิกโดยนักศึกษา</div><div class="step">3 —</div></div>`;
+  let s2,s3='';
+  if(st==='pending')s2='now'; else if(st==='reviewing'){s2='done';s3='now'} else if(st==='approved'){s2='done';s3='done'} else if(rev){s2='done';s3='bad'} else s2='bad';
+  const l2=(st==='rejected'&&!rev)?'เจ้าหน้าที่ไม่ผ่าน':'เจ้าหน้าที่ยืนยัน';
+  const l3=st==='approved'?'อาจารย์อนุมัติ':(st==='rejected'&&rev?'อาจารย์ไม่อนุมัติ':'อาจารย์พิจารณา');
+  return `<div class="steps"><div class="step done">1 ยื่นคำร้อง</div><div class="step ${s2}">2 ${l2}</div><div class="step ${s3}">3 ${l3}</div></div>`;
+}
+function hintFor(a){
+  const r=S.user.role; let m='';
+  if(r==='staff'&&a.status==='pending') m='ตรวจสอบเหตุผลและหลักฐาน แล้วกดยืนยันเพื่อส่งต่ออาจารย์ผู้สอน หรือกดไม่ผ่านหากข้อมูลไม่ครบ';
+  else if(r==='teacher'&&a.status==='pending') m='คำร้องนี้ยังรอเจ้าหน้าที่ยืนยัน จึงยังพิจารณาไม่ได้';
+  else if(r==='student'&&a.status==='pending') m='เจ้าหน้าที่กำลังตรวจสอบเอกสารของคุณ อาจารย์ผู้สอนมองเห็นคำร้องนี้แล้ว · ยังยกเลิกคำร้องได้จนกว่าอาจารย์จะตัดสิน';
+  else if(r==='student'&&a.status==='reviewing') m='ผ่านการยืนยันจากเจ้าหน้าที่แล้ว กำลังรออาจารย์พิจารณา · ยังยกเลิกคำร้องได้จนกว่าอาจารย์จะตัดสิน';
+  else if(a.status==='cancelled') m=r==='student'?'คุณยกเลิกคำร้องนี้แล้ว สามารถยื่นคำร้องใหม่สำหรับวิชานี้ได้':'นักศึกษายกเลิกคำร้องนี้แล้ว ไม่ต้องดำเนินการต่อ';
+  return m?`<div class="box" style="margin-top:10px">${m}</div>`:'';
+}
+function appealModal(aid){
+  const a=get('grade_appeals',aid), c=appealCtx(a);
+  const rev=DB.appeal_reviews.find(r=>r.appeal_id==aid);
+  const atts=DB.appeal_attachment.filter(x=>x.appeal_ID==aid);
+  const hist=DB.appeal_status_history.filter(x=>x.appeal_ID==aid).sort((x,y)=>x.history_ID-y.history_ID);
+  const gh=DB.grade_history.filter(x=>x.appeal_ID==aid);
+  const canAct=S.user.role==='teacher' && c.t.user_ID==S.user.user_ID && a.status==='reviewing';
+  const staffAct=S.user.role==='staff' && a.status==='pending';
+  const stuCancel=S.user.role==='student' && c.s.user_ID==S.user.user_ID && ['pending','reviewing'].includes(a.status);
+  const gradeOpts=GRADES.filter(g=>g!==c.enr.grade).map(g=>`<option>${g}</option>`).join('');
+  openModal(`<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><h3>คำร้อง #${aid}</h3>${pill(a.status)}</div>
+  ${progressHtml(a)}${hintFor(a)}<dl class="kv"><dt>รายวิชา</dt><dd>${esc(c.c.course_code)} ${esc(c.c.course_name)} (${c.off.semester}/${c.off.academic_year})</dd>
+  <dt>นักศึกษา</dt><dd>${esc(c.s.First_Name)} ${esc(c.s.Last_Name)} (${c.s.student_ID})</dd>
+  <dt>อาจารย์ผู้สอน</dt><dd>อ.${esc(c.t.First_Name)} ${esc(c.t.Last_Name)}</dd>
+  <dt>เกรดตอนยื่นคำร้อง</dt><dd class="grade">${a.grade_at_request}</dd>
+  <dt>เกรดปัจจุบัน</dt><dd class="grade">${c.enr.grade}</dd></dl>
+  <div class="sec"><h4>เหตุผล</h4><div class="box">${esc(a.reason)}</div></div>
+  <div class="sec"><h4>ไฟล์แนบ</h4>${atts.length?`<div class="files">${atts.map(x=>`<span class="file">${esc(x.file_name)} <span style="color:var(--muted)">.${esc(x.file_type)}</span></span>`).join('')}</div>`:'<span style="color:var(--muted);font-size:13px">ไม่มีไฟล์แนบ</span>'}</div>
+  ${rev?`<div class="sec"><h4>ผลการพิจารณา</h4><div class="box">โดย ${esc(personName(rev.reviewer_id))} · ${rev.decision==='approved'?`<b style="color:var(--s-ok)">อนุมัติ</b> เกรดใหม่ <b>${rev.new_grade}</b>`:'<b style="color:var(--s-no)">ไม่อนุมัติ</b> คงเกรดเดิม'}</div></div>`:''}
+  ${gh.length?`<div class="sec"><h4>ประวัติการเปลี่ยนเกรด</h4>${gh.map(g=>`<div class="box">${g.old_grade} → <b>${g.new_grade}</b> · แก้ไขโดย ${esc(personName(g.changed_by))}</div>`).join('')}</div>`:''}
+  <div class="sec"><h4>ประวัติสถานะ</h4><ul class="tl">${hist.map(h=>`<li>${h.old_status?STATUS[h.old_status]+' → ':'ยื่นคำร้อง → '}<b>${STATUS[h.new_status]}</b><div class="by">โดย ${esc(personName(h.changed_by))}</div></li>`).join('')}</ul></div>
+  ${canAct?`<div class="sec" style="border-top:1.5px solid var(--ink);padding-top:12px"><h4>พิจารณาคำร้อง</h4>
+    <div class="radios"><label><input type="radio" name="dec" value="approved" checked> อนุมัติ แก้ไขเกรด</label><label><input type="radio" name="dec" value="rejected"> ไม่อนุมัติ (คงเกรดเดิม)</label></div>
+    <div id="ngWrap"><label for="ng">เกรดใหม่ (new_grade)</label><select id="ng">${gradeOpts}</select></div></div>`:''}
+  <div class="actions"><button class="btn" data-act="close">ปิด</button>
+  ${staffAct?`<button class="btn no" data-act="staffReject" data-id="${aid}">ไม่ผ่าน (ปฏิเสธคำร้อง)</button><button class="btn ok" data-act="staffConfirm" data-id="${aid}">ยืนยันคำร้อง ส่งต่ออาจารย์</button>`:''}
+  ${canAct?`<button class="btn primary" data-act="decide" data-id="${aid}">ยืนยันผลพิจารณา</button>`:''}${stuCancel?`<button class="btn no" data-act="cancelAsk" data-id="${aid}">ยกเลิกคำร้อง</button>`:''}</div><div id="cancelBox"></div>`);
+}
+function cancelRule(a){
+  if(['approved','rejected'].includes(a.status)) return {rule:'ยกเลิกไม่ได้เมื่ออาจารย์ตัดสินแล้ว',code:'ERROR 1644 (45000)',msg:`ยกเลิกไม่ได้ คำร้อง #${a.appeals_ID} มีผลพิจารณาแล้ว (status = ${a.status})`};
+  if(a.status==='cancelled') return {rule:'คำร้องนี้ถูกยกเลิกไปแล้ว',code:'ERROR 1644 (45000)',msg:`คำร้อง #${a.appeals_ID} ถูกยกเลิกแล้ว`};
+  return null;
+}
+function cancelAsk(aid){
+  const box=$('#cancelBox'); if(!box) return;
+  box.innerHTML=`<div class="errbox"><b>ยืนยันการยกเลิกคำร้อง #${aid}?</b>หลังยกเลิก เจ้าหน้าที่และอาจารย์จะไม่พิจารณาคำร้องนี้อีก คุณสามารถยื่นคำร้องใหม่สำหรับวิชานี้ได้ภายหลัง<div class="actions" style="margin-top:10px"><button class="btn" data-act="cancelNo">ไม่ยกเลิก</button><button class="btn no" data-act="cancelDo" data-id="${aid}">ยืนยันยกเลิกคำร้อง</button></div></div>`;
+}
+function cancelAppeal(aid){
+  const a=get('grade_appeals',aid), c=appealCtx(a);
+  if(c.s.user_ID!=S.user.user_ID){toast('ยกเลิกได้เฉพาะคำร้องของตัวเอง');return}
+  const err=cancelRule(a);
+  if(err){
+    beginTx(); rec(`UPDATE grade_appeals\nSET status = 'cancelled'\nWHERE appeals_ID = ${aid};`);
+    endTx(`นักศึกษายกเลิกคำร้อง #${aid} (ถูกปฏิเสธ)`,false,err.msg);
+    toast(err.msg); render(); appealModal(aid); return;
+  }
+  beginTx();
+  addHistory(aid,a.status,'cancelled',S.user.user_ID); setCol('grade_appeals',aid,'status','cancelled');
+  DB.User.filter(x=>x.role==='staff').forEach(x=>notify(x.user_ID,aid,`นักศึกษา ${c.s.First_Name} ${c.s.Last_Name} ยกเลิกคำร้อง #${aid} วิชา ${c.c.course_code}`));
+  notify(c.t.user_ID,aid,`นักศึกษา ${c.s.First_Name} ${c.s.Last_Name} ยกเลิกคำร้อง #${aid} วิชา ${c.c.course_code} ไม่ต้องพิจารณาต่อ`);
+  endTx(`นักศึกษายกเลิกคำร้อง #${aid} (${c.c.course_code})`);
+  render(); appealModal(aid); toast('ยกเลิกคำร้องแล้ว');
+}
+function attemptCancelFinal(){
+  const ap=DB.grade_appeals.find(a=>appealCtx(a).s.user_ID==S.user.user_ID && ['approved','rejected'].includes(a.status));
+  if(!ap){S.ruleOut='<div class="box">บัญชีนี้ไม่มีคำร้องที่อาจารย์ตัดสินแล้ว ลองใช้บัญชี 6401001 (คำร้อง #1 อนุมัติแล้ว)</div>';render();return}
+  const err=cancelRule(ap), sqlText=`UPDATE grade_appeals\nSET status = 'cancelled'\nWHERE appeals_ID = ${ap.appeals_ID};`;
+  beginTx(); rec(sqlText);
+  endTx(`ทดสอบกฎ: ยกเลิกหลังอาจารย์ตัดสิน (#${ap.appeals_ID})`,false,err.msg);
+  S.ruleOut=errBoxHtml(err,sqlText,`<div style="margin-top:8px;color:var(--ink)">สถานะคำร้อง #${ap.appeals_ID} ยังเป็น ${ap.status} (ไม่เปลี่ยน)</div>`);
+  render(); toast('ระบบปฏิเสธรายการ และไม่มีข้อมูลถูกเปลี่ยนแปลง');
+}
+function staffConfirm(aid){
+  if(get('grade_appeals',aid).status!=='pending'){toast('คำร้องนี้ถูกเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
+  staffConfirm0(aid);
+}
+function staffConfirm0(aid){
+  const a=get('grade_appeals',aid), c=appealCtx(a);
+  beginTx();
+  addHistory(aid,a.status,'reviewing',S.user.user_ID); setCol('grade_appeals',aid,'status','reviewing');
+  notify(c.s.user_ID,aid,`เจ้าหน้าที่ยืนยันคำร้อง #${aid} (${c.c.course_code}) แล้ว ส่งต่ออาจารย์ผู้สอน`);
+  notify(c.t.user_ID,aid,`คำร้อง #${aid} จาก ${c.s.First_Name} ${c.s.Last_Name} วิชา ${c.c.course_code} ผ่านการยืนยันจากเจ้าหน้าที่ รอพิจารณา`);
+  endTx(`เจ้าหน้าที่ยืนยันคำร้อง #${aid}`);
+  render(); appealModal(aid); toast('ยืนยันคำร้องและส่งต่ออาจารย์แล้ว');
+}
+function staffReject(aid){
+  if(get('grade_appeals',aid).status!=='pending'){toast('คำร้องนี้ถูกเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
+  staffReject0(aid);
+}
+function staffReject0(aid){
+  const a=get('grade_appeals',aid), c=appealCtx(a);
+  beginTx();
+  addHistory(aid,a.status,'rejected',S.user.user_ID); setCol('grade_appeals',aid,'status','rejected');
+  notify(c.s.user_ID,aid,`คำร้อง #${aid} (${c.c.course_code}) ไม่ผ่านการตรวจสอบของเจ้าหน้าที่ กรุณาติดต่อฝ่ายทะเบียน`);
+  endTx(`เจ้าหน้าที่ไม่ผ่านคำร้อง #${aid}`);
+  render(); appealModal(aid); toast('บันทึกว่าไม่ผ่านแล้ว');
+}
+function decideAppeal(aid){
+  if(get('grade_appeals',aid).status!=='reviewing'){toast('คำร้องนี้ถูกยกเลิกหรือเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
+  decideAppeal0(aid);
+}
+function decideAppeal0(aid){
+  const a=get('grade_appeals',aid), c=appealCtx(a), enr=c.enr;
+  const dec=document.querySelector('input[name=dec]:checked').value;
+  const old=a.status, oldGrade=enr.grade;
+  const ng = dec==='approved' ? $('#ng').value : oldGrade;
+  beginTx();
+  dbInsert('appeal_reviews',{review_id:nid('appeal_reviews'),reviewer_id:S.user.user_ID,appeal_id:aid,decision:dec,new_grade:ng});
+  if(dec==='approved'){
+    dbInsert('grade_history',{grade_history_ID:nid('grade_history'),appeal_ID:aid,enrollment_ID:enr.enrollment_ID,old_grade:oldGrade,new_grade:ng,changed_by:S.user.user_ID});
+    setCol('enrollment',enr.enrollment_ID,'grade',ng);
+  }
+  addHistory(aid,old,dec,S.user.user_ID); setCol('grade_appeals',aid,'status',dec);
+  notify(c.s.user_ID,aid, dec==='approved'
+    ? `คำร้อง #${aid} (${c.c.course_code}) ได้รับการอนุมัติ เกรดเปลี่ยนจาก ${oldGrade} เป็น ${ng}`
+    : `คำร้อง #${aid} (${c.c.course_code}) ไม่ได้รับการอนุมัติ คงเกรดเดิม ${oldGrade}`);
+  endTx(`อาจารย์${dec==='approved'?'อนุมัติ':'ไม่อนุมัติ'}คำร้อง #${aid}`);
+  render(); appealModal(aid); toast(dec==='approved'?'อนุมัติและแก้ไขเกรดแล้ว':'บันทึกผลไม่อนุมัติแล้ว คงเกรดเดิม');
+}
+
+/* ============ NOTIFICATIONS ============ */
+function vNotif(){
+  const list=DB.notification.filter(n=>n.user_id==S.user.user_ID).sort((a,b)=>b.notification_ID-a.notification_ID);
+  return `<div class="h-row"><div><h2>การแจ้งเตือน</h2><p>ยังไม่ได้อ่าน ${unread()} รายการ</p></div>
+  ${unread()?'<button class="btn sm" data-act="readAll">ทำเครื่องหมายว่าอ่านทั้งหมด</button>':''}</div>
+  <div class="panel">${list.length?list.map(n=>`<div class="notif ${n.is_read?'':'unread'}" data-act="readNotif" data-id="${n.notification_ID}"><span class="dot"></span><div>${esc(n.massage)}<div style="font-size:12.5px;color:var(--muted)">คำร้อง #${n.appeal_ID}</div></div></div>`).join(''):'<div class="empty">ยังไม่มีการแจ้งเตือน</div>'}</div>`;
+}
+
+/* ============ TEACHER / STAFF ============ */
+function vCourses(){
+  const t=myTeacher();
+  const offs=DB.course_offering.filter(o=>o.teacher_ID==t.teacher_ID);
+  return `<div class="h-row"><div><h2>รายวิชาที่สอน</h2><p>อ.${esc(t.First_Name)} ${esc(t.Last_Name)} · ${esc(get('Department',t.department_ID).department_name)}</p></div></div>
+  <div class="panel tbl-wrap"><table><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>ภาคเรียน</th><th>สถานะ</th><th class="num">นักศึกษา</th><th class="num">คำร้อง</th></tr></thead><tbody>
+  ${offs.map(o=>{const c=get('course',o.course_ID);const enrs=DB.enrollment.filter(e=>e.offering_ID==o.offering_ID);
+    const n=DB.grade_appeals.filter(a=>enrs.some(e=>e.enrollment_ID==a.enrollment_ID)).length;
+    return `<tr><td class="mono">${esc(c.course_code)}</td><td>${esc(c.course_name)}</td><td class="mono">${o.semester}/${o.academic_year}</td><td>${csPill(o.course_status_id)}</td><td class="num">${enrs.length}</td><td class="num">${n}</td></tr>`}).join('')}
+  </tbody></table></div>`;
+}
+function vOfferings(){
+  return `<div class="h-row"><div><h2>รายวิชาเปิดสอน</h2><p>เปลี่ยนสถานะรายวิชา (course_status) เพื่อเปิดหรือปิดรับคำร้อง เปิดรับเมื่อเป็น “ประกาศเกรดแล้ว”</p></div></div>
+  <div class="panel tbl-wrap"><table><thead><tr><th>#</th><th>รายวิชา</th><th>อาจารย์</th><th>ภาคเรียน</th><th>สถานะ</th></tr></thead><tbody>
+  ${DB.course_offering.map(o=>{const c=get('course',o.course_ID),t=get('Teachers',o.teacher_ID);
+    return `<tr><td class="mono">${o.offering_ID}</td><td>${esc(c.course_code)} ${esc(c.course_name)}</td><td>อ.${esc(t.First_Name)} ${esc(t.Last_Name)}</td><td class="mono">${o.semester}/${o.academic_year}</td>
+    <td><select data-chg="offstatus" data-id="${o.offering_ID}" style="width:auto" aria-label="สถานะรายวิชา">${DB.course_status.map(s=>`<option value="${s.course_status_id}" ${s.course_status_id==o.course_status_id?'selected':''}>${esc(s.status_name)}</option>`).join('')}</select></td></tr>`}).join('')}
+  </tbody></table></div>`;
+}
+
+/* ============ RULE TESTS (กรณีที่ระบบต้องปฏิเสธ) ============ */
+function vRules(){
+  return `<div class="h-row"><div><h2>ทดสอบกฎที่ระบบต้องปฏิเสธ</h2><p>บังคับส่งรายการที่ผิดกฎทางธุรกิจเข้าฐานข้อมูล แล้วดูว่าระบบป้องกันไว้อย่างไร</p></div></div>
+  <div class="panel card" style="margin-bottom:12px"><h3 style="font-size:16px">กฎ 1 · ห้ามยื่นคำร้องซ้ำวิชาเดิมที่ยังไม่ยกเลิก</h3>
+    <p style="color:var(--muted);margin:4px 0 10px">ป้องกันด้วย trigger ตรวจว่ายังไม่มีคำร้องของ enrollment_ID เดียวกันที่ status ไม่ใช่ cancelled</p>
+    <button class="btn" data-act="viol" data-k="dup">ลองยื่นซ้ำวิชาที่ยื่นไปแล้ว</button></div>
+  <div class="panel card" style="margin-bottom:12px"><h3 style="font-size:16px">กฎ 2 · ยื่นได้เฉพาะวิชาที่ประกาศเกรดแล้ว</h3>
+    <p style="color:var(--muted);margin:4px 0 10px">ป้องกันด้วย trigger ตรวจ <code>course_status_id = 2</code> ก่อน INSERT</p>
+    <button class="btn" data-act="viol" data-k="notpub">ลองยื่นวิชาที่ยังไม่ประกาศเกรด</button></div>
+  <div class="panel card" style="margin-bottom:12px"><h3 style="font-size:16px">กฎ 3 · ยกเลิกคำร้องได้จนกว่าอาจารย์จะตัดสิน</h3>
+    <p style="color:var(--muted);margin:4px 0 10px">ป้องกันด้วย trigger ห้ามเปลี่ยนเป็น cancelled เมื่อ status เป็น approved หรือ rejected</p>
+    <button class="btn" data-act="viol" data-k="cancelFinal">ลองยกเลิกคำร้องที่อาจารย์ตัดสินแล้ว</button></div>
+  <div id="ruleOut">${S.ruleOut||''}</div>`;
+}
+function attemptViolation(kind){
+  if(kind==='cancelFinal') return attemptCancelFinal();
+  const me=myStudent(), mine=DB.enrollment.filter(e=>e.student_ID==me.student_ID);
+  const enr = kind==='dup'
+    ? mine.find(e=>DB.grade_appeals.some(a=>a.enrollment_ID==e.enrollment_ID && a.status!=='cancelled'))
+    : mine.find(e=>get('course_offering',e.offering_ID).course_status_id!=2);
+  if(!enr){
+    S.ruleOut=`<div class="box">${kind==='dup'?'คุณยังไม่เคยยื่นคำร้อง ให้ยื่นคำร้องก่อน แล้วกลับมาลองยื่นซ้ำ':'บัญชีนี้ไม่มีวิชาที่ยังไม่ประกาศเกรด ลองใช้บัญชี 6401001 หรือ 6401002'}</div>`;
+    render(); return;
+  }
+  const c=ctx(enr), before=DB.grade_appeals.length;
+  const row={appeals_ID:nid('grade_appeals'),enrollment_ID:enr.enrollment_ID,grade_at_request:enr.grade,reason:'ทดสอบกฎระบบ',status:'pending'};
+  beginTx(); rec(insSql('grade_appeals',row));
+  const err=validateAppeal(enr);
+  endTx(`ทดสอบกฎ: ${kind==='dup'?'ยื่นซ้ำ':'ยื่นก่อนประกาศเกรด'} (${c.c.course_code})`,false,err.msg);
+  S.ruleOut=errBoxHtml(err,insSql('grade_appeals',row),`<div style="margin-top:8px;color:var(--ink)">จำนวนแถวใน grade_appeals: ก่อน ${before} → หลัง ${DB.grade_appeals.length} (ไม่เปลี่ยน)</div>`);
+  render(); toast('ระบบปฏิเสธรายการ และไม่มีข้อมูลถูกเพิ่ม');
+}
+
+/* ============ REPORT (ผลลัพธ์ปลายทาง) ============ */
+function vReport(){
+  const list=visibleAppeals();
+  const groups={};
+  list.forEach(a=>{const c=appealCtx(a);(groups[c.off.offering_ID]=groups[c.off.offering_ID]||{c,rows:[]}).rows.push(a)});
+  const gRows=Object.values(groups).map(g=>{const f=s=>g.rows.filter(a=>a.status===s).length;
+    return `<tr><td class="mono">${esc(g.c.c.course_code)}</td><td>${esc(g.c.c.course_name)}</td><td class="mono">${g.c.off.semester}/${g.c.off.academic_year}</td><td class="num"><b>${g.rows.length}</b></td><td class="num">${f('pending')}</td><td class="num">${f('reviewing')}</td><td class="num">${f('approved')}</td><td class="num">${f('rejected')}</td><td class="num">${f('cancelled')}</td></tr>`}).join('');
+  const ids=new Set(list.map(a=>a.appeals_ID));
+  const gh=DB.grade_history.filter(h=>ids.has(h.appeal_ID));
+  const ghRows=gh.map(h=>{const c=ctx(get('enrollment',h.enrollment_ID));
+    return `<tr><td class="mono">#${h.appeal_ID}</td><td>${esc(c.s.First_Name)} ${esc(c.s.Last_Name)}</td><td>${esc(c.c.course_code)}</td><td><span class="old-g">${h.old_grade}</span> → <span class="grade new-g">${h.new_grade}</span></td><td>${esc(personName(h.changed_by))}</td></tr>`}).join('');
+  const latest=list.slice().sort((a,b)=>b.appeals_ID-a.appeals_ID)[0];
+  let lastBox='<div class="panel empty">ยังไม่มีคำร้อง</div>';
+  if(latest){const c=appealCtx(latest);
+    lastBox=`<div class="panel card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><div><b>คำร้อง #${latest.appeals_ID}</b> · ${esc(c.c.course_code)} ${esc(c.c.course_name)}<div style="color:var(--muted);font-size:13px">${esc(c.s.First_Name)} ${esc(c.s.Last_Name)} · เกรดตอนยื่น ${latest.grade_at_request} · เกรดปัจจุบัน <b>${c.enr.grade}</b></div></div><div>${pill(latest.status)} <button class="btn sm" data-act="open" data-id="${latest.appeals_ID}">ดูรายละเอียด</button></div></div></div>`}
+  return `<div class="h-row"><div><h2>รายงานสรุปผลคำร้อง</h2><p>สรุปจากข้อมูลในฐานข้อมูลตามสิทธิ์ของ${ROLE_TH[S.user.role]} เปลี่ยนทันทีเมื่อมีรายการใหม่</p></div></div>
+  ${statsHtml(list)}
+  <div class="h-row"><div><h2 style="font-size:17px">คำร้องล่าสุด</h2></div></div>${lastBox}
+  <div class="h-row" style="margin-top:20px"><div><h2 style="font-size:17px">สรุปแยกตามรายวิชา</h2></div></div>
+  ${gRows?`<div class="panel tbl-wrap"><table><thead><tr><th>รหัสวิชา</th><th>ชื่อวิชา</th><th>ภาคเรียน</th><th class="num">ทั้งหมด</th><th class="num">รอเจ้าหน้าที่</th><th class="num">รออาจารย์</th><th class="num">อนุมัติ</th><th class="num">ไม่อนุมัติ</th><th class="num">ยกเลิก</th></tr></thead><tbody>${gRows}</tbody></table></div>`:'<div class="panel empty">ยังไม่มีข้อมูล</div>'}
+  <div class="h-row" style="margin-top:20px"><div><h2 style="font-size:17px">ประวัติการแก้ไขเกรด</h2><p>จากตาราง grade_history</p></div></div>
+  ${ghRows?`<div class="panel tbl-wrap"><table><thead><tr><th>คำร้อง</th><th>นักศึกษา</th><th>วิชา</th><th>เกรดเดิม → เกรดใหม่</th><th>แก้ไขโดย</th></tr></thead><tbody>${ghRows}</tbody></table></div>`:'<div class="panel empty">ยังไม่มีการแก้ไขเกรด</div>'}`;
+}
+
+/* ============ SQL LOG ============ */
+function reportSql(){
+  const sid=S.user.role==='student'?myStudent().student_ID:6401001;
+  return `-- หน้าประกาศเกรด (นักศึกษารหัส ${sid})
+SELECT c.course_code, c.course_name, o.semester, o.academic_year,
+       e.grade, a.grade_at_request, a.status
+FROM enrollment e
+JOIN course_offering o ON o.offering_ID = e.offering_ID
+JOIN course c          ON c.course_ID   = o.course_ID
+LEFT JOIN grade_appeals a ON a.enrollment_ID = e.enrollment_ID
+WHERE e.student_ID = ${sid};
+
+-- รายงานสรุปคำร้องแยกตามรายวิชา
+SELECT c.course_code, o.semester, o.academic_year,
+       COUNT(*)                  AS total,
+       SUM(a.status='pending')   AS pending,
+       SUM(a.status='reviewing') AS reviewing,
+       SUM(a.status='approved')  AS approved,
+       SUM(a.status='rejected')  AS rejected
+FROM grade_appeals a
+JOIN enrollment e      ON e.enrollment_ID = a.enrollment_ID
+JOIN course_offering o ON o.offering_ID   = e.offering_ID
+JOIN course c          ON c.course_ID     = o.course_ID
+GROUP BY o.offering_ID, c.course_code, o.semester, o.academic_year;
+
+-- ประวัติการแก้ไขเกรด
+SELECT h.appeal_ID, s.First_Name, c.course_code, h.old_grade, h.new_grade, h.changed_by
+FROM grade_history h
+JOIN enrollment e      ON e.enrollment_ID = h.enrollment_ID
+JOIN student s         ON s.student_ID    = e.student_ID
+JOIN course_offering o ON o.offering_ID   = e.offering_ID
+JOIN course c          ON c.course_ID     = o.course_ID;`;
+}
+function vSql(){
+  const items=SQL.map((x,i)=>({...x,n:i+1})).reverse();
+  return `<div class="h-row"><div><h2>SQL เบื้องหลัง</h2><p>ทุกการทำงานผ่านหน้าจอถูกแปลงเป็น transaction ตามรายการด้านล่าง (ล่าสุดอยู่บนสุด)</p></div></div>
+  ${items.length?items.map(x=>`<div class="panel sqlcard"><div class="hd"><b>#${x.n} ${esc(x.title)}</b><span><span class="pill ${x.ok?'p-approved':'p-rejected'}">${x.ok?'COMMIT':'ROLLBACK'}</span></span></div>
+    <div class="who">โดย ${esc(x.who)}${x.note?` · ${esc(x.note)}`:''}</div><pre style="margin-top:8px">${esc(x.stmts.join('\n'))}</pre></div>`).join(''):'<div class="panel empty">ยังไม่มีรายการ ลองยื่นคำร้องหรือกดยืนยันคำร้อง แล้วกลับมาดูที่นี่</div>'}
+  <div class="h-row" style="margin-top:22px"><div><h2 style="font-size:17px">Query ที่ใช้แสดงหน้าประกาศเกรดและรายงาน</h2></div></div>
+  <div class="panel card"><pre>${esc(reportSql())}</pre></div>`;
+}
+
+/* ============ DATABASE VIEWER ============ */
+function vDb(){
+  const names=Object.keys(SCHEMA), sc=SCHEMA[S.tbl];
+  const D=Object.fromEntries(names.map(n=>[n,diffRows(n)]));
+  const cnt=n=>D[n].filter(Boolean).length;
+  const totalChg=names.reduce((s,n)=>s+cnt(n),0), tblChg=names.filter(n=>cnt(n)).length;
+  const d=D[S.tbl], anyDiff=d.some(Boolean);
+  const head=(anyDiff?'<th></th>':'')+sc.cols.map(c=>{
+    const b=c===sc.pk?'<span class="th-badge pk">PK</span>':sc.fk[c]?'<span class="th-badge fk">FK</span>':'';
+    return `<th>${b}${c}</th>`}).join('');
+  const rows=DB[S.tbl].map((r,i)=>`<tr class="${d[i]?'r-'+d[i]:''}">${anyDiff?`<td>${d[i]?`<span class="tag">${d[i]==='new'?'ใหม่':'แก้ไข'}</span>`:''}</td>`:''}${sc.cols.map(c=>{
+    let v=r[c]; if(v===null||v===undefined) v='—'; else if(typeof v==='boolean') v=v?'true':'false';
+    const t=sc.fk[c]&&c!=='file_name'?` title="อ้างอิง ${sc.fk[c]}"`:'';
+    return `<td class="mono"${t}>${esc(v)}</td>`}).join('')}</tr>`).join('');
+  return `<div class="h-row"><div><h2>ฐานข้อมูล</h2><p>ตารางทั้ง 14 ตารางตามแผนภาพ ER · แถวสีเขียว = เพิ่มใหม่ แถวสีเหลือง = แก้ไข (เทียบกับจุดเริ่มต้น)</p></div>
+  <button class="btn sm" data-act="snapshot">ตั้งจุดเริ่มต้นใหม่ (ก่อนทำ)</button></div>
+  <div class="box" style="margin-bottom:12px">${totalChg?`เปลี่ยนแปลงจากจุดเริ่มต้น <b>${totalChg} แถว</b> ใน <b>${tblChg} ตาราง</b>`:'ยังไม่มีการเปลี่ยนแปลงจากจุดเริ่มต้น กดยื่นคำร้องหรือยืนยันคำร้อง แล้วกลับมาดูที่นี่'}</div>
+  <div class="tabs2">${names.map(n=>`<button class="chip" aria-pressed="${S.tbl===n}" data-act="tbl" data-v="${n}">${n} (${DB[n].length})${cnt(n)?`<span class="dchip">+${cnt(n)}</span>`:''}</button>`).join('')}</div>
+  <div class="panel tbl-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td class="empty" colspan="${sc.cols.length}">ไม่มีข้อมูล</td></tr>`}</tbody></table></div>`;
+}
+function vEr(){
+  return `<div class="h-row"><div><h2>โครงสร้าง ER</h2><p><span class="k-pk">PK</span> คีย์หลัก · <span class="k-fk">FK</span> คีย์นอก</p></div></div>
+  <div class="ent-grid">${Object.entries(SCHEMA).map(([n,s])=>`<div class="panel ent"><h3>${n}</h3><ul>${s.cols.map(c=>`<li>${c===s.pk?'<span class="k-pk">PK</span> ':s.fk[c]?'<span class="k-fk">FK</span> ':'<span style="display:inline-block;width:20px"></span> '}${c}${s.fk[c]&&c!=='file_name'?` <span style="color:var(--muted)">→ ${s.fk[c]}</span>`:''}</li>`).join('')}</ul></div>`).join('')}</div>
+  <div class="h-row" style="margin-top:26px"><div><h2>ความสัมพันธ์</h2><p>ตามเส้นเชื่อมและตัวเลข 1 / N ในแผนภาพ</p></div></div>
+  <div class="panel">${RELS.map(r=>`<div class="rel"><div class="a">${r[0]}</div><div class="c">${r[1]} : ${r[2]}</div><div>${r[3]}<small>ผ่าน ${r[4]}</small></div></div>`).join('')}</div>`;
+}
+
+/* ============ EVENTS ============ */
+const H = {
+  quick:b=>{$('#un').value=b.dataset.u;$('#pw').value='1234';doLogin(b.dataset.u,'1234')},
+  logout:()=>{S.user=null;render()},
+  tab:b=>{S.tab=b.dataset.tab;S.filter=(S.user.role==='staff'&&b.dataset.tab==='appeals')?'pending':'all';render()},
+  filter:b=>{S.filter=b.dataset.v;render()},
+  tbl:b=>{S.tbl=b.dataset.v;render()},
+  open:b=>appealModal(+b.dataset.id),
+  close:closeModal,
+  newAppeal:b=>newAppealModal(+b.dataset.id),
+  newAppealPick:()=>newAppealModal(),
+  sampleFile:()=>{S.files.push({file_name:`evidence_${S.files.length+1}.pdf`,file_type:'pdf'});drawFiles()},
+  rmFile:b=>{S.files.splice(+b.dataset.id,1);drawFiles()},
+  submitAppeal,
+  staffConfirm:b=>staffConfirm(+b.dataset.id),
+  staffReject:b=>staffReject(+b.dataset.id),
+  decide:b=>decideAppeal(+b.dataset.id),
+  viol:b=>attemptViolation(b.dataset.k),
+  cancelAsk:b=>cancelAsk(+b.dataset.id),
+  cancelNo:()=>{const bx=$('#cancelBox');if(bx)bx.innerHTML=''},
+  cancelDo:b=>cancelAppeal(+b.dataset.id),
+  cancelList:b=>{appealModal(+b.dataset.id);cancelAsk(+b.dataset.id)},
+  snapshot:()=>{BASE=JSON.parse(JSON.stringify(DB));render();toast('ตั้งจุดเริ่มต้นใหม่แล้ว การเปลี่ยนแปลงหลังจากนี้จะถูกไฮไลต์')},
+  readNotif:b=>{const n=get('notification',+b.dataset.id);n.is_read=true;render();appealModal(n.appeal_ID)},
+  readAll:()=>{DB.notification.filter(n=>n.user_id==S.user.user_ID).forEach(n=>n.is_read=true);render()},
+  reset:()=>{DB=seed();BASE=JSON.parse(JSON.stringify(DB));SQL=[];S.files=[];S.ruleOut='';render();toast('รีเซ็ตข้อมูลเดโมแล้ว')}
+};
+document.addEventListener('click',e=>{
+  if(e.target===$('#ov')){closeModal();return}
+  const b=e.target.closest('[data-act]'); if(b&&H[b.dataset.act]) H[b.dataset.act](b);
+});
+document.addEventListener('submit',e=>{
+  if(e.target.id==='lf'){e.preventDefault();doLogin($('#un').value.trim(),$('#pw').value)}
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='fileIn'){
+    [...t.files].forEach(f=>{const ext=(f.name.split('.').pop()||'file').toLowerCase();S.files.push({file_name:f.name,file_type:ext})});
+    t.value='';drawFiles();
+  }
+  if(t.name==='dec'){$('#ngWrap').classList.toggle('hidden',t.value!=='approved')}
+  if(t.id==='enrSel'){showEnrInfo()}
+  if(t.dataset.chg==='offstatus'){
+    get('course_offering',+t.dataset.id).course_status_id=+t.value; render(); toast('เปลี่ยนสถานะรายวิชาแล้ว');
+  }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+render();
+</script>
+</body>
+</html>
