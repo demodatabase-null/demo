@@ -452,7 +452,7 @@ function loginView(){
       <div class="demo">
         <p>บัญชีทดลองอาจารย์: <b>advisor</b> · รหัสผ่าน <b>11223344</b></p>
         <p>บัญชีทดลองเจ้าหน้าที่: <b>admin</b> · รหัสผ่าน <b>11223344</b></p>
-        <p>บัญชีทดลองนักศึกษา: <b>student@demo.invalid</b> · รหัสผ่าน <b>11223344</b> · เกรดเป็นข้อมูลตัวอย่าง</p>
+        <p>บัญชีทดลองนักศึกษา: <b>student</b> (อีเมล <b>student@demo.invalid</b>) · รหัสผ่าน <b>11223344</b> · เกรดเป็นข้อมูลตัวอย่าง</p>
         <p>บัญชีใหม่เริ่มต้นเป็นนักศึกษา ใช้อีเมลที่ระบบรับได้ ไม่ต้องยืนยันอีเมล</p>
       </div>
     </div>
@@ -475,6 +475,7 @@ async function doLogin(email,password){
   const account=email.trim().toLowerCase();
   if(account==='advisor') email='advisor@demo.invalid';
   else if(account==='admin') email='admin@demo.invalid';
+  else if(account==='student') email='student@demo.invalid';
   const {data,error}=await sbClient.auth.signInWithPassword({email,password});
   if(error){$('#lerr').textContent='เข้าสู่ระบบไม่สำเร็จ: '+error.message;return}
   await connectUser(data.user);
