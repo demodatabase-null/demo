@@ -7,6 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg:#f3f6f9; --grid:#e1e7ee; --surface:#ffffff; --surface2:#f7f9fb;
@@ -205,6 +206,33 @@ footer button{border:0;background:none;text-decoration:underline;cursor:pointer;
 <div class="toast" id="toast" role="status"></div>
 
 <script>
+// Browser-safe Supabase project settings. This key is public by design; RLS is mandatory.
+const SUPABASE_URL = 'https://rldwgsqzmcmsakvzmzbq.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_XlaYJzCw3sZYbiYAaO1e1Q_mxYchhU-';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const REMOTE_TABLES = {Department:'departments',User:'users',Teachers:'teachers',student:'students',course:'courses',course_status:'course_status',course_offering:'course_offerings',enrollment:'enrollments',grade_appeals:'grade_appeals',appeal_reviews:'appeal_reviews',appeal_status_history:'appeal_status_history',appeal_attachment:'appeal_attachments',grade_history:'grade_history',notification:'notifications'};
+const REMOTE_FIELDS = {
+ Department:{department_id:'department_ID'}, User:{user_id:'user_ID'},
+ Teachers:{teacher_id:'teacher_ID',first_name:'First_Name',last_name:'Last_Name',department_id:'department_ID',user_id:'user_ID'},
+ student:{student_id:'student_ID',first_name:'First_Name',last_name:'Last_Name',study_year:'study_year',department_id:'department_ID',user_id:'user_ID'},
+ course:{course_id:'course_ID'},course_status:{course_status_id:'course_status_id'},
+ course_offering:{offering_id:'offering_ID',course_id:'course_ID',teacher_id:'teacher_ID',course_status_id:'course_status_id'},
+ enrollment:{enrollment_id:'enrollment_ID',offering_id:'offering_ID',student_id:'student_ID'},
+ grade_appeals:{appeals_id:'appeals_ID',enrollment_id:'enrollment_ID',grade_at_request:'grade_at_request'},
+ appeal_reviews:{review_id:'review_id',reviewer_id:'reviewer_id',appeal_id:'appeal_id'},
+ appeal_status_history:{history_id:'history_ID',appeal_id:'appeal_ID',changed_by:'changed_by',old_status:'old_status',new_status:'new_status'},
+ appeal_attachment:{attachment_id:'attachment_ID',appeal_id:'appeal_ID'},
+ grade_history:{grade_history_id:'grade_history_ID',appeal_id:'appeal_ID',enrollment_id:'enrollment_ID',changed_by:'changed_by'},
+ notification:{notification_id:'notification_ID',user_id:'user_id',appeal_id:'appeal_ID',massage:'massage'}
+};
+function fromRemote(table,row){const m=REMOTE_FIELDS[table]||{};return Object.fromEntries(Object.entries(row).map(([k,v])=>[m[k]||k,v]))}
+async function loadRemoteData(){
+ const entries=await Promise.all(Object.entries(REMOTE_TABLES).map(async([name,table])=>{
+   const {data,error}=await supabase.from(table).select('*'); if(error) throw error;
+   return [name,(data||[]).map(row=>fromRemote(name,row))];
+ }));
+ DB=Object.fromEntries(entries); BASE=JSON.parse(JSON.stringify(DB)); SQL=[];
+}
 /* ============ SCHEMA (ตาม ER ทุกตาราง ทุกฟิลด์) ============ */
 const SCHEMA = {
   User:{pk:'user_ID',cols:['user_ID','username','password_hash','role','email'],fk:{}},
@@ -325,7 +353,7 @@ let DB = seed();
 let BASE = JSON.parse(JSON.stringify(DB));   // จุดเริ่มต้น (ก่อนทำ) สำหรับเทียบการเปลี่ยนแปลง
 let SQL = [];                                 // บันทึก SQL เบื้องหลัง
 let TX = null;
-const S = {user:null,tab:null,filter:'all',tbl:'User',files:[],ruleOut:''};
+const S = {user:null,tab:null,filter:'all',tbl:'User',files:[],ruleOut:'',signup:false};
 const GRADES = ['A','B+','B','C+','C','D+','D','F'];
 const STATUS = {pending:'รอเจ้าหน้าที่ยืนยัน',reviewing:'รออาจารย์พิจารณา',approved:'อนุมัติแก้ไขเกรด',rejected:'ไม่อนุมัติ',cancelled:'ยกเลิกโดยนักศึกษา'};
 const ROLE_TH = {student:'นักศึกษา',teacher:'อาจารย์',staff:'เจ้าหน้าที่'};
@@ -405,7 +433,6 @@ function diffRows(t){
 
 /* ============ LOGIN ============ */
 function loginView(){
-  const acc=(u,l)=>`<button type="button" class="btn sm ghost" data-act="quick" data-u="${u}">${l}</button>`;
   return `<div class="wrap"><div class="login">
     <div>
       <h1>ระบบยื่นคำร้อง<br>ขอตรวจสอบเกรด</h1>
@@ -414,25 +441,42 @@ function loginView(){
     </div>
     <div class="panel card">
       <form id="lf" autocomplete="off">
-        <label for="un">ชื่อผู้ใช้ (username)</label><input id="un" type="text" required>
-        <label for="pw">รหัสผ่าน (password)</label><input id="pw" type="password" required>
+        <div id="signupFields" class="hidden"><label for="firstName">ชื่อ</label><input id="firstName" type="text"><label for="lastName">นามสกุล</label><input id="lastName" type="text"></div>
+        <label for="un">อีเมล</label><input id="un" type="email" autocomplete="email" required>
+        <label for="pw">รหัสผ่าน</label><input id="pw" type="password" autocomplete="current-password" minlength="8" required>
         <div class="err" id="lerr" role="alert"></div>
-        <button class="btn primary" style="width:100%;margin-top:6px" type="submit">เข้าสู่ระบบ</button>
+        <button id="loginSubmit" class="btn primary" style="width:100%;margin-top:6px" type="submit">เข้าสู่ระบบ</button>
+        <button id="signupToggle" class="btn" style="width:100%;margin-top:8px" type="button" data-act="toggleSignup">สร้างบัญชีนักศึกษา</button>
       </form>
       <div class="demo">
-        <p>บัญชีทดลอง (รหัสผ่านทุกบัญชี 1234)</p>
-        <div class="row">${acc('6401001','นักศึกษา ธนกร')}${acc('6401002','นักศึกษา พิมพ์ชนก')}${acc('6401003','นักศึกษา กฤษฎา')}</div>
-        <div class="row">${acc('somchai.j','อาจารย์สมชาย')}${acc('malee.r','อาจารย์มาลี')}${acc('staff01','เจ้าหน้าที่')}</div>
+        <p>บัญชีใหม่เริ่มต้นเป็นนักศึกษา บัญชีอาจารย์และเจ้าหน้าที่ต้องได้รับการกำหนดโดยผู้ดูแลระบบ</p>
       </div>
     </div>
   </div></div>`;
 }
-function doLogin(u,p){
-  const user=DB.User.find(x=>x.username===u && x.password_hash===hash(p));
-  if(!user){$('#lerr').textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง ลองใช้บัญชีทดลองด้านล่าง';return}
-  S.user=user; S.filter=user.role==='staff'?'pending':'all';
-  S.tab={student:'grades',teacher:'appeals',staff:'appeals'}[user.role];
-  render();
+async function connectUser(authUser){
+  try{
+    const {data:user,error}=await supabase.from('users').select('*').eq('auth_user_id',authUser.id).single();
+    if(error) throw error;
+    await loadRemoteData();
+    S.user=fromRemote('User',user); S.filter=S.user.role==='staff'?'pending':'all';
+    S.tab={student:'grades',teacher:'appeals',staff:'appeals'}[S.user.role]; render();
+  }catch(error){
+    await supabase.auth.signOut();
+    $('#app').innerHTML=loginView();
+    $('#lerr').textContent='ยังไม่พบบัญชีในฐานข้อมูล หรือยังตั้งค่า schema ไม่ครบ: '+(error.message||'ตรวจสอบการตั้งค่า Supabase');
+  }
+}
+async function doLogin(email,password){
+  const {data,error}=await supabase.auth.signInWithPassword({email,password});
+  if(error){$('#lerr').textContent='เข้าสู่ระบบไม่สำเร็จ: '+error.message;return}
+  await connectUser(data.user);
+}
+async function doSignup(email,password){
+  const {data,error}=await supabase.auth.signUp({email,password,options:{data:{first_name:$('#firstName').value.trim(),last_name:$('#lastName').value.trim()}}});
+  if(error){$('#lerr').textContent='สร้างบัญชีไม่สำเร็จ: '+error.message;return}
+  if(data.session) await connectUser(data.user);
+  else $('#lerr').textContent='สร้างบัญชีแล้ว กรุณายืนยันอีเมลจากกล่องจดหมายก่อนเข้าสู่ระบบ';
 }
 
 /* ============ SHELL ============ */
@@ -455,7 +499,7 @@ function render(){
   </div></header>
   <nav class="tabs"><div class="wrap" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${S.tab===k}" data-act="tab" data-tab="${k}">${l}</button>`).join('')}</div></nav>
   <main><div class="wrap">${(views[S.tab]||vGrades)()}</div></main>
-  <footer><button data-act="reset">รีเซ็ตข้อมูลเดโม</button></footer>`;
+  <footer>ข้อมูลที่แสดงถูกอ่านจาก Supabase และควบคุมด้วยสิทธิ์ของบัญชีที่เข้าสู่ระบบ</footer>`;
 }
 
 /* ============ GRADE ANNOUNCEMENT ============ */
@@ -538,8 +582,7 @@ function newAppealModal(eid){
   <div class="files" id="fileList"></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
     <label class="btn sm" for="fileIn" style="margin:0;font-weight:500;cursor:pointer">เลือกไฟล์</label>
-    <input id="fileIn" type="file" multiple class="hidden">
-    <button type="button" class="btn sm ghost" data-act="sampleFile">เพิ่มไฟล์ตัวอย่าง</button>
+    <input id="fileIn" type="file" multiple accept="application/pdf,image/jpeg,image/png" class="hidden">
   </div>
   <div id="modalErr"></div>
   <div class="actions"><button class="btn" data-act="close">ยกเลิก</button><button class="btn primary" data-act="submitAppeal">ส่งคำร้อง</button></div>`);
@@ -552,30 +595,29 @@ function drawFiles(){
 function errBoxHtml(err,sqlText,extra=''){
   return `<div class="errbox"><b>ระบบปฏิเสธรายการ · ${esc(err.rule)}</b><div class="mono">${esc(err.code)}: ${esc(err.msg)}</div>${sqlText?`<pre>${esc(sqlText)}\n-- ผลลัพธ์: ROLLBACK ไม่มีข้อมูลถูกเปลี่ยนแปลง</pre>`:''}${extra}</div>`;
 }
-function submitAppeal(){
+async function submitAppeal(){
   const sel=$('#enrSel'); if(!sel||!sel.value){toast('กรุณาเลือกวิชาที่ต้องการยื่น');return}
   const reason=$('#reason').value.trim();
   if(reason.length<10){toast('กรุณาระบุเหตุผลอย่างน้อย 10 ตัวอักษร');return}
-  const enr=get('enrollment',+sel.value), c=ctx(enr);
-  const aid=nid('grade_appeals');
-  const row={appeals_ID:aid,enrollment_ID:enr.enrollment_ID,grade_at_request:enr.grade,reason,status:'pending'};
-  beginTx();
-  const err=validateAppeal(enr);
-  if(err){
-    rec(insSql('grade_appeals',row));
-    $('#modalErr').innerHTML=errBoxHtml(err,'');
-    endTx(`ยื่นคำร้อง ${c.c.course_code} (ถูกปฏิเสธ)`,false,err.msg);
-    toast('ระบบปฏิเสธรายการนี้');
-    return;
+  const paths=[]; const uploaded=[];
+  for(const f of S.files){
+    if(!f.file){$('#modalErr').innerHTML='<div class="errbox">กรุณาเลือกไฟล์ใหม่จากอุปกรณ์อีกครั้ง</div>';return}
+    if(f.file.size>10*1024*1024){$('#modalErr').innerHTML=`<div class="errbox">ไฟล์ ${esc(f.file_name)} มีขนาดเกิน 10 MB</div>`;return}
+    const safeName=f.file.name.replace(/[^\p{L}\p{N}._-]/gu,'_');
+    const path=`${S.user.user_ID}/${crypto.randomUUID()}-${safeName}`;
+    const {error:uploadError}=await supabase.storage.from('appeal-evidence').upload(path,f.file,{contentType:f.file.type,upsert:false});
+    if(uploadError){if(uploaded.length)await supabase.storage.from('appeal-evidence').remove(uploaded);$('#modalErr').innerHTML=`<div class="errbox">อัปโหลดไฟล์ไม่สำเร็จ: ${esc(uploadError.message)}</div>`;return}
+    uploaded.push(path);paths.push({file_name:f.file_name,file_type:f.file_type,storage_path:path});
   }
-  dbInsert('grade_appeals',row);
-  S.files.forEach(f=>dbInsert('appeal_attachment',{attachment_ID:nid('appeal_attachment'),appeal_ID:aid,file_name:f.file_name,file_type:f.file_type}));
-  addHistory(aid,null,'pending',S.user.user_ID);
-  DB.User.filter(x=>x.role==='staff').forEach(x=>notify(x.user_ID,aid,`มีคำร้องใหม่ #${aid} จาก ${c.s.First_Name} ${c.s.Last_Name} วิชา ${c.c.course_code} รอเจ้าหน้าที่ยืนยัน`));
-  notify(c.t.user_ID,aid,`นักศึกษา ${c.s.First_Name} ${c.s.Last_Name} ยื่นคำร้อง #${aid} วิชา ${c.c.course_code} (รอเจ้าหน้าที่ยืนยันก่อนส่งให้พิจารณา)`);
-  endTx(`นักศึกษายื่นคำร้อง #${aid} (${c.c.course_code})`);
-  closeModal(); S.tab='appeals'; render(); appealModal(aid);
-  toast(`ส่งคำร้อง #${aid} แล้ว เจ้าหน้าที่และอาจารย์จะเห็นคำร้องนี้`);
+  const {data:aid,error}=await supabase.rpc('submit_appeal',{p_enrollment_id:Number(sel.value),p_reason:reason,p_files:paths});
+  if(error){if(uploaded.length)await supabase.storage.from('appeal-evidence').remove(uploaded);$('#modalErr').innerHTML=`<div class="errbox"><b>ส่งคำร้องไม่สำเร็จ</b>${esc(error.message)}</div>`;return}
+  try{await loadRemoteData()}catch(e){toast('บันทึกแล้ว แต่โหลดข้อมูลล่าสุดไม่สำเร็จ');return}
+  closeModal(); S.tab='appeals'; render(); appealModal(Number(aid)); toast(`ส่งคำร้อง #${aid} และบันทึกลงฐานข้อมูลแล้ว`);
+}
+async function downloadAttachment(path){
+  const {data,error}=await supabase.storage.from('appeal-evidence').createSignedUrl(path,60);
+  if(error){toast('เปิดไฟล์ไม่ได้: '+error.message);return}
+  const a=document.createElement('a');a.href=data.signedUrl;a.target='_blank';a.rel='noopener';a.click();
 }
 
 /* ============ APPEAL LIST ============ */
@@ -638,7 +680,7 @@ function appealModal(aid){
   <dt>เกรดตอนยื่นคำร้อง</dt><dd class="grade">${a.grade_at_request}</dd>
   <dt>เกรดปัจจุบัน</dt><dd class="grade">${c.enr.grade}</dd></dl>
   <div class="sec"><h4>เหตุผล</h4><div class="box">${esc(a.reason)}</div></div>
-  <div class="sec"><h4>ไฟล์แนบ</h4>${atts.length?`<div class="files">${atts.map(x=>`<span class="file">${esc(x.file_name)} <span style="color:var(--muted)">.${esc(x.file_type)}</span></span>`).join('')}</div>`:'<span style="color:var(--muted);font-size:13px">ไม่มีไฟล์แนบ</span>'}</div>
+  <div class="sec"><h4>ไฟล์แนบ</h4>${atts.length?`<div class="files">${atts.map(x=>`<span class="file">${x.storage_path?`<button type="button" data-act="downloadAttach" data-path="${esc(x.storage_path)}">${esc(x.file_name)}</button>`:esc(x.file_name)} <span style="color:var(--muted)">.${esc(x.file_type)}</span></span>`).join('')}</div>`:'<span style="color:var(--muted);font-size:13px">ไม่มีไฟล์แนบ</span>'}</div>
   ${rev?`<div class="sec"><h4>ผลการพิจารณา</h4><div class="box">โดย ${esc(personName(rev.reviewer_id))} · ${rev.decision==='approved'?`<b style="color:var(--s-ok)">อนุมัติ</b> เกรดใหม่ <b>${rev.new_grade}</b>`:'<b style="color:var(--s-no)">ไม่อนุมัติ</b> คงเกรดเดิม'}</div></div>`:''}
   ${gh.length?`<div class="sec"><h4>ประวัติการเปลี่ยนเกรด</h4>${gh.map(g=>`<div class="box">${g.old_grade} → <b>${g.new_grade}</b> · แก้ไขโดย ${esc(personName(g.changed_by))}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>ประวัติสถานะ</h4><ul class="tl">${hist.map(h=>`<li>${h.old_status?STATUS[h.old_status]+' → ':'ยื่นคำร้อง → '}<b>${STATUS[h.new_status]}</b><div class="by">โดย ${esc(personName(h.changed_by))}</div></li>`).join('')}</ul></div>
@@ -658,7 +700,7 @@ function cancelAsk(aid){
   const box=$('#cancelBox'); if(!box) return;
   box.innerHTML=`<div class="errbox"><b>ยืนยันการยกเลิกคำร้อง #${aid}?</b>หลังยกเลิก เจ้าหน้าที่และอาจารย์จะไม่พิจารณาคำร้องนี้อีก คุณสามารถยื่นคำร้องใหม่สำหรับวิชานี้ได้ภายหลัง<div class="actions" style="margin-top:10px"><button class="btn" data-act="cancelNo">ไม่ยกเลิก</button><button class="btn no" data-act="cancelDo" data-id="${aid}">ยืนยันยกเลิกคำร้อง</button></div></div>`;
 }
-function cancelAppeal(aid){
+async function cancelAppeal(aid){
   const a=get('grade_appeals',aid), c=appealCtx(a);
   if(c.s.user_ID!=S.user.user_ID){toast('ยกเลิกได้เฉพาะคำร้องของตัวเอง');return}
   const err=cancelRule(a);
@@ -667,12 +709,9 @@ function cancelAppeal(aid){
     endTx(`นักศึกษายกเลิกคำร้อง #${aid} (ถูกปฏิเสธ)`,false,err.msg);
     toast(err.msg); render(); appealModal(aid); return;
   }
-  beginTx();
-  addHistory(aid,a.status,'cancelled',S.user.user_ID); setCol('grade_appeals',aid,'status','cancelled');
-  DB.User.filter(x=>x.role==='staff').forEach(x=>notify(x.user_ID,aid,`นักศึกษา ${c.s.First_Name} ${c.s.Last_Name} ยกเลิกคำร้อง #${aid} วิชา ${c.c.course_code}`));
-  notify(c.t.user_ID,aid,`นักศึกษา ${c.s.First_Name} ${c.s.Last_Name} ยกเลิกคำร้อง #${aid} วิชา ${c.c.course_code} ไม่ต้องพิจารณาต่อ`);
-  endTx(`นักศึกษายกเลิกคำร้อง #${aid} (${c.c.course_code})`);
-  render(); appealModal(aid); toast('ยกเลิกคำร้องแล้ว');
+  const {error}=await supabase.from('grade_appeals').update({status:'cancelled'}).eq('appeals_id',aid);
+  if(error){toast('ยกเลิกไม่สำเร็จ: '+error.message);return}
+  await loadRemoteData(); render(); appealModal(aid); toast('ยกเลิกและบันทึกสถานะแล้ว');
 }
 function attemptCancelFinal(){
   const ap=DB.grade_appeals.find(a=>appealCtx(a).s.user_ID==S.user.user_ID && ['approved','rejected'].includes(a.status));
@@ -687,48 +726,29 @@ function staffConfirm(aid){
   if(get('grade_appeals',aid).status!=='pending'){toast('คำร้องนี้ถูกเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
   staffConfirm0(aid);
 }
-function staffConfirm0(aid){
-  const a=get('grade_appeals',aid), c=appealCtx(a);
-  beginTx();
-  addHistory(aid,a.status,'reviewing',S.user.user_ID); setCol('grade_appeals',aid,'status','reviewing');
-  notify(c.s.user_ID,aid,`เจ้าหน้าที่ยืนยันคำร้อง #${aid} (${c.c.course_code}) แล้ว ส่งต่ออาจารย์ผู้สอน`);
-  notify(c.t.user_ID,aid,`คำร้อง #${aid} จาก ${c.s.First_Name} ${c.s.Last_Name} วิชา ${c.c.course_code} ผ่านการยืนยันจากเจ้าหน้าที่ รอพิจารณา`);
-  endTx(`เจ้าหน้าที่ยืนยันคำร้อง #${aid}`);
-  render(); appealModal(aid); toast('ยืนยันคำร้องและส่งต่ออาจารย์แล้ว');
+async function staffConfirm0(aid){
+  const {error}=await supabase.from('grade_appeals').update({status:'reviewing'}).eq('appeals_id',aid);
+  if(error){toast('ยืนยันไม่สำเร็จ: '+error.message);return}
+  await loadRemoteData(); render(); appealModal(aid); toast('ยืนยันคำร้องและบันทึกลงฐานข้อมูลแล้ว');
 }
 function staffReject(aid){
   if(get('grade_appeals',aid).status!=='pending'){toast('คำร้องนี้ถูกเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
   staffReject0(aid);
 }
-function staffReject0(aid){
-  const a=get('grade_appeals',aid), c=appealCtx(a);
-  beginTx();
-  addHistory(aid,a.status,'rejected',S.user.user_ID); setCol('grade_appeals',aid,'status','rejected');
-  notify(c.s.user_ID,aid,`คำร้อง #${aid} (${c.c.course_code}) ไม่ผ่านการตรวจสอบของเจ้าหน้าที่ กรุณาติดต่อฝ่ายทะเบียน`);
-  endTx(`เจ้าหน้าที่ไม่ผ่านคำร้อง #${aid}`);
-  render(); appealModal(aid); toast('บันทึกว่าไม่ผ่านแล้ว');
+async function staffReject0(aid){
+  const {error}=await supabase.from('grade_appeals').update({status:'rejected'}).eq('appeals_id',aid);
+  if(error){toast('ปฏิเสธไม่สำเร็จ: '+error.message);return}
+  await loadRemoteData(); render(); appealModal(aid); toast('บันทึกผลลงฐานข้อมูลแล้ว');
 }
 function decideAppeal(aid){
   if(get('grade_appeals',aid).status!=='reviewing'){toast('คำร้องนี้ถูกยกเลิกหรือเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
   decideAppeal0(aid);
 }
-function decideAppeal0(aid){
-  const a=get('grade_appeals',aid), c=appealCtx(a), enr=c.enr;
+async function decideAppeal0(aid){
   const dec=document.querySelector('input[name=dec]:checked').value;
-  const old=a.status, oldGrade=enr.grade;
-  const ng = dec==='approved' ? $('#ng').value : oldGrade;
-  beginTx();
-  dbInsert('appeal_reviews',{review_id:nid('appeal_reviews'),reviewer_id:S.user.user_ID,appeal_id:aid,decision:dec,new_grade:ng});
-  if(dec==='approved'){
-    dbInsert('grade_history',{grade_history_ID:nid('grade_history'),appeal_ID:aid,enrollment_ID:enr.enrollment_ID,old_grade:oldGrade,new_grade:ng,changed_by:S.user.user_ID});
-    setCol('enrollment',enr.enrollment_ID,'grade',ng);
-  }
-  addHistory(aid,old,dec,S.user.user_ID); setCol('grade_appeals',aid,'status',dec);
-  notify(c.s.user_ID,aid, dec==='approved'
-    ? `คำร้อง #${aid} (${c.c.course_code}) ได้รับการอนุมัติ เกรดเปลี่ยนจาก ${oldGrade} เป็น ${ng}`
-    : `คำร้อง #${aid} (${c.c.course_code}) ไม่ได้รับการอนุมัติ คงเกรดเดิม ${oldGrade}`);
-  endTx(`อาจารย์${dec==='approved'?'อนุมัติ':'ไม่อนุมัติ'}คำร้อง #${aid}`);
-  render(); appealModal(aid); toast(dec==='approved'?'อนุมัติและแก้ไขเกรดแล้ว':'บันทึกผลไม่อนุมัติแล้ว คงเกรดเดิม');
+  const {error}=await supabase.rpc('review_appeal',{p_appeal_id:aid,p_decision:dec,p_new_grade:dec==='approved'?$('#ng').value:null});
+  if(error){toast('บันทึกผลไม่สำเร็จ: '+error.message);return}
+  await loadRemoteData(); render(); appealModal(aid); toast(dec==='approved'?'อนุมัติและบันทึกการแก้เกรดแล้ว':'บันทึกผลไม่อนุมัติแล้ว');
 }
 
 /* ============ NOTIFICATIONS ============ */
@@ -887,8 +907,8 @@ function vEr(){
 
 /* ============ EVENTS ============ */
 const H = {
-  quick:b=>{$('#un').value=b.dataset.u;$('#pw').value='1234';doLogin(b.dataset.u,'1234')},
-  logout:()=>{S.user=null;render()},
+  toggleSignup:()=>{S.signup=!S.signup;$('#signupFields').classList.toggle('hidden',!S.signup);$('#loginSubmit').textContent=S.signup?'สร้างบัญชี':'เข้าสู่ระบบ';$('#signupToggle').textContent=S.signup?'กลับไปเข้าสู่ระบบ':'สร้างบัญชีนักศึกษา';$('#pw').setAttribute('autocomplete',S.signup?'new-password':'current-password');$('#lerr').textContent=''},
+  logout:async()=>{await supabase.auth.signOut();S.user=null;DB=seed();render()},
   tab:b=>{S.tab=b.dataset.tab;S.filter=(S.user.role==='staff'&&b.dataset.tab==='appeals')?'pending':'all';render()},
   filter:b=>{S.filter=b.dataset.v;render()},
   tbl:b=>{S.tbl=b.dataset.v;render()},
@@ -896,7 +916,7 @@ const H = {
   close:closeModal,
   newAppeal:b=>newAppealModal(+b.dataset.id),
   newAppealPick:()=>newAppealModal(),
-  sampleFile:()=>{S.files.push({file_name:`evidence_${S.files.length+1}.pdf`,file_type:'pdf'});drawFiles()},
+  downloadAttach:b=>downloadAttachment(b.dataset.path),
   rmFile:b=>{S.files.splice(+b.dataset.id,1);drawFiles()},
   submitAppeal,
   staffConfirm:b=>staffConfirm(+b.dataset.id),
@@ -908,31 +928,34 @@ const H = {
   cancelDo:b=>cancelAppeal(+b.dataset.id),
   cancelList:b=>{appealModal(+b.dataset.id);cancelAsk(+b.dataset.id)},
   snapshot:()=>{BASE=JSON.parse(JSON.stringify(DB));render();toast('ตั้งจุดเริ่มต้นใหม่แล้ว การเปลี่ยนแปลงหลังจากนี้จะถูกไฮไลต์')},
-  readNotif:b=>{const n=get('notification',+b.dataset.id);n.is_read=true;render();appealModal(n.appeal_ID)},
-  readAll:()=>{DB.notification.filter(n=>n.user_id==S.user.user_ID).forEach(n=>n.is_read=true);render()},
-  reset:()=>{DB=seed();BASE=JSON.parse(JSON.stringify(DB));SQL=[];S.files=[];S.ruleOut='';render();toast('รีเซ็ตข้อมูลเดโมแล้ว')}
+  readNotif:async b=>{const n=get('notification',+b.dataset.id);const {error}=await supabase.from('notifications').update({is_read:true}).eq('notification_id',n.notification_ID);if(error){toast('อัปเดตไม่สำเร็จ: '+error.message);return}await loadRemoteData();render();appealModal(n.appeal_ID)},
+  readAll:async()=>{const {error}=await supabase.from('notifications').update({is_read:true}).eq('user_id',S.user.user_ID);if(error){toast('อัปเดตไม่สำเร็จ: '+error.message);return}await loadRemoteData();render()}
 };
 document.addEventListener('click',e=>{
   if(e.target===$('#ov')){closeModal();return}
   const b=e.target.closest('[data-act]'); if(b&&H[b.dataset.act]) H[b.dataset.act](b);
 });
 document.addEventListener('submit',e=>{
-  if(e.target.id==='lf'){e.preventDefault();doLogin($('#un').value.trim(),$('#pw').value)}
+  if(e.target.id==='lf'){e.preventDefault();S.signup?doSignup($('#un').value.trim(),$('#pw').value):doLogin($('#un').value.trim(),$('#pw').value)}
 });
 document.addEventListener('change',e=>{
   const t=e.target;
   if(t.id==='fileIn'){
-    [...t.files].forEach(f=>{const ext=(f.name.split('.').pop()||'file').toLowerCase();S.files.push({file_name:f.name,file_type:ext})});
+    [...t.files].forEach(f=>{const ext=(f.name.split('.').pop()||'file').toLowerCase();S.files.push({file_name:f.name,file_type:ext,file:f})});
     t.value='';drawFiles();
   }
   if(t.name==='dec'){$('#ngWrap').classList.toggle('hidden',t.value!=='approved')}
   if(t.id==='enrSel'){showEnrInfo()}
   if(t.dataset.chg==='offstatus'){
-    get('course_offering',+t.dataset.id).course_status_id=+t.value; render(); toast('เปลี่ยนสถานะรายวิชาแล้ว');
+    supabase.from('course_offerings').update({course_status_id:Number(t.value)}).eq('offering_id',Number(t.dataset.id)).then(async({error})=>{if(error){toast('บันทึกไม่สำเร็จ: '+error.message);return}await loadRemoteData();render();toast('บันทึกสถานะรายวิชาแล้ว')});
   }
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 render();
+supabase.auth.getSession().then(({data,error})=>{
+  if(error){$('#app').innerHTML=loginView();$('#lerr').textContent=error.message;return}
+  if(data.session) connectUser(data.session.user);
+}).catch(error=>{ $('#app').innerHTML=loginView(); $('#lerr').textContent=error.message||'เชื่อมต่อ Supabase ไม่สำเร็จ'; });
 </script>
 </body>
 </html>
