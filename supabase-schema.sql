@@ -219,10 +219,9 @@ as $$
 declare a public.grade_appeals%rowtype;
 begin
   if not public.is_staff() or p_decision not in ('reviewing','rejected') then raise exception 'ไม่มีสิทธิ์ดำเนินการคำร้อง'; end if;
-  if nullif(btrim(coalesce(p_comment,'')),'') is null then raise exception 'กรุณาระบุความคิดเห็นถึงนักศึกษา'; end if;
   select * into a from public.grade_appeals where appeals_id=p_appeal_id for update;
   if not found or a.status<>'pending' then raise exception 'คำร้องนี้ไม่ได้รอเจ้าหน้าที่ยืนยัน'; end if;
-  update public.grade_appeals set status=p_decision,staff_comment=btrim(p_comment) where appeals_id=a.appeals_id;
+  update public.grade_appeals set status=p_decision,staff_comment=nullif(btrim(coalesce(p_comment,'')),'') where appeals_id=a.appeals_id;
 end $$;
 revoke all on function public.staff_respond_appeal(bigint,text,text) from public;
 grant execute on function public.staff_respond_appeal(bigint,text,text) to authenticated;
@@ -234,7 +233,6 @@ as $$
 declare a public.grade_appeals%rowtype; e public.enrollments%rowtype; teacher_user bigint;
 begin
   if public.app_role()<>'teacher' or p_decision not in ('approved','rejected') then raise exception 'ไม่มีสิทธิ์พิจารณาคำร้อง'; end if;
-  if nullif(btrim(coalesce(p_comment,'')),'') is null then raise exception 'กรุณาระบุความคิดเห็นถึงนักศึกษา'; end if;
   select * into a from public.grade_appeals where appeals_id=p_appeal_id for update;
   if not found or a.status<>'reviewing' then raise exception 'คำร้องนี้ไม่ได้อยู่ระหว่างพิจารณา'; end if;
   select en.* into e from public.enrollments en where en.enrollment_id=a.enrollment_id for update;
@@ -248,7 +246,7 @@ begin
     insert into public.grade_history(appeal_id,enrollment_id,old_grade,new_grade,changed_by)
       values(a.appeals_id,e.enrollment_id,e.grade,p_new_grade,public.app_user_id());
   end if;
-  update public.grade_appeals set status=p_decision,teacher_comment=btrim(p_comment) where appeals_id=a.appeals_id;
+  update public.grade_appeals set status=p_decision,teacher_comment=nullif(btrim(coalesce(p_comment,'')),'') where appeals_id=a.appeals_id;
 end $$;
 revoke all on function public.review_appeal(bigint,text,text,text) from public;
 grant execute on function public.review_appeal(bigint,text,text,text) to authenticated;
