@@ -232,7 +232,7 @@ async function loadRemoteData(){
    const {data,error}=await sbClient.from(table).select('*'); if(error) throw error;
    return [name,(data||[]).map(row=>fromRemote(name,row))];
  }));
- DB=Object.fromEntries(entries); BASE=JSON.parse(JSON.stringify(DB)); SQL=[];
+ DB=Object.fromEntries(entries); BASE=JSON.parse(JSON.stringify(DB));
 }
 /* ============ SCHEMA (ตาม ER ทุกตาราง ทุกฟิลด์) ============ */
 const SCHEMA = {
@@ -352,7 +352,8 @@ function seed(){
 /* ============ STATE & HELPERS ============ */
 let DB = seed();
 let BASE = JSON.parse(JSON.stringify(DB));   // จุดเริ่มต้น (ก่อนทำ) สำหรับเทียบการเปลี่ยนแปลง
-let SQL = [];                                 // บันทึก SQL เบื้องหลัง
+let SQL = [];                                 // คำสั่งจำลองจากแท็บทดสอบกฎ
+let LIVE_SQL = [];                            // คำสั่ง backend ที่สำเร็จใน session นี้
 let TX = null;
 const S = {user:null,tab:null,filter:'all',tbl:'User',files:[],ruleOut:'',signup:false};
 const GRADES = ['A','B+','B','C+','C','D+','D','F'];
@@ -375,6 +376,10 @@ function endTx(title,ok=true,note=''){
   TX.push(ok?'COMMIT;':'ROLLBACK;');
   SQL.push({title,ok,note,who:`${personName(S.user.user_ID)} (${ROLE_TH[S.user.role]})`,stmts:TX});
   TX=null;
+}
+function recordLiveSql(title,call,stmts,note=''){
+  LIVE_SQL.unshift({title,call,stmts,who:`${personName(S.user.user_ID)} (${ROLE_TH[S.user.role]})`,note,at:new Date().toLocaleString('th-TH')});
+  if(LIVE_SQL.length>20)LIVE_SQL.length=20;
 }
 function dbInsert(t,row){DB[t].push(row);rec(insSql(t,row));return row}
 function setCol(t,id,col,val){get(t,id)[col]=val;rec(`UPDATE ${t}\nSET ${col} = ${q(val)}\nWHERE ${SCHEMA[t].pk} = ${q(id)};`)}
@@ -463,7 +468,7 @@ async function connectUser(authUser){
     const {data:user,error}=await sbClient.from('users').select('*').eq('auth_user_id',authUser.id).single();
     if(error) throw error;
     await loadRemoteData();
-    S.user=fromRemote('User',user); S.filter=S.user.role==='staff'?'pending':'all';
+    S.user=fromRemote('User',user); LIVE_SQL=[]; SQL=[]; S.filter=S.user.role==='staff'?'pending':'all';
     S.tab={student:'grades',teacher:'appeals',staff:'appeals'}[S.user.role]; render();
   }catch(error){
     await sbClient.auth.signOut();
@@ -620,6 +625,18 @@ async function submitAppeal(){
   const {data:aid,error}=await sbClient.rpc('submit_appeal',{p_enrollment_id:Number(sel.value),p_reason:reason,p_files:paths});
   if(error){if(uploaded.length)await sbClient.storage.from('appeal-evidence').remove(uploaded);$('#modalErr').innerHTML=`<div class="errbox"><b>ส่งคำร้องไม่สำเร็จ</b>${esc(error.message)}</div>`;return}
   try{await loadRemoteData()}catch(e){toast('บันทึกแล้ว แต่โหลดข้อมูลล่าสุดไม่สำเร็จ');return}
+  recordLiveSql(`ยื่นคำร้อง #${aid}`,`${paths.length?`Storage: sbClient.storage.from('appeal-evidence').upload(path, file, {contentType, upsert:false}) × ${paths.length}\n`:''}RPC: POST /rest/v1/rpc/submit_appeal (ซ่อนค่าพารามิเตอร์)`,[
+    "-- SQL ภายใน public.submit_appeal ที่ Supabase เรียกผ่าน RPC",
+    "SELECT en.* FROM public.enrollments en JOIN public.students s USING (student_id)",
+    "WHERE en.enrollment_id = p_enrollment_id AND s.user_id = public.app_user_id();",
+    "INSERT INTO public.grade_appeals (enrollment_id, grade_at_request, reason)",
+    "VALUES (e.enrollment_id, e.grade, p_reason) RETURNING appeals_id INTO new_appeal_id;",
+    ...(paths.length?["INSERT INTO public.appeal_attachments (appeal_id, file_name, file_type, storage_path)","SELECT new_appeal_id, f->>'file_name', f->>'file_type', f->>'storage_path' FROM jsonb_array_elements(p_files) f;"]: ["-- ไม่มีไฟล์แนบในคำร้องนี้"]),
+    "-- Trigger public.log_appeal_change หลังเพิ่มคำร้อง",
+    "INSERT INTO public.appeal_status_history (appeal_id, changed_by, old_status, new_status) VALUES (new.appeals_id, public.app_user_id(), NULL, 'pending');",
+    "INSERT INTO public.notifications (appeal_id, user_id, massage) SELECT new.appeals_id, user_id, 'มีคำร้องใหม่' FROM public.users WHERE role = 'staff';",
+    "INSERT INTO public.notifications (appeal_id, user_id, massage) VALUES (new.appeals_id, e.teacher_user_id, 'มีคำร้องใหม่');"
+  ],`Storage upload: ${paths.length} ไฟล์; เหตุผลถูกซ่อนไว้`);
   closeModal(); S.tab='appeals'; render(); appealModal(Number(aid)); toast(`ส่งคำร้อง #${aid} และบันทึกลงฐานข้อมูลแล้ว`);
 }
 async function downloadAttachment(path){
@@ -722,7 +739,10 @@ async function cancelAppeal(aid){
   }
   const {error}=await sbClient.from('grade_appeals').update({status:'cancelled'}).eq('appeals_id',aid);
   if(error){toast('ยกเลิกไม่สำเร็จ: '+error.message);return}
-  await loadRemoteData(); render(); appealModal(aid); toast('ยกเลิกและบันทึกสถานะแล้ว');
+  await loadRemoteData(); recordLiveSql(`นักศึกษายกเลิกคำร้อง #${aid}`,"PATCH /rest/v1/grade_appeals?appeals_id=eq.$1",[
+    "UPDATE public.grade_appeals SET status = 'cancelled' WHERE appeals_id = $1;",
+    "-- Trigger เพิ่ม appeal_status_history และ notifications ให้นักศึกษา"
+  ]); render(); appealModal(aid); toast('ยกเลิกและบันทึกสถานะแล้ว');
 }
 function attemptCancelFinal(){
   const ap=DB.grade_appeals.find(a=>appealCtx(a).s.user_ID==S.user.user_ID && ['approved','rejected'].includes(a.status));
@@ -741,7 +761,15 @@ async function staffConfirm0(aid){
   const comment=$('#staffComment')?.value.trim()||null;
   const {error}=await sbClient.rpc('staff_respond_appeal',{p_appeal_id:aid,p_decision:'reviewing',p_comment:comment});
   if(error){toast('ยืนยันไม่สำเร็จ: '+error.message);return}
-  await loadRemoteData(); render(); appealModal(aid); toast('ยืนยันคำร้องและบันทึกลงฐานข้อมูลแล้ว');
+  await loadRemoteData(); recordLiveSql(`เจ้าหน้าที่ส่งคำร้อง #${aid} ให้อาจารย์`,"POST /rest/v1/rpc/staff_respond_appeal",[
+    "-- SQL ภายใน public.staff_respond_appeal",
+    "SELECT * FROM public.grade_appeals WHERE appeals_id = p_appeal_id FOR UPDATE;",
+    "UPDATE public.grade_appeals SET status = p_decision, staff_comment = NULLIF(BTRIM(COALESCE(p_comment, '')), '')",
+    "WHERE appeals_id = p_appeal_id;",
+    "-- Trigger เพิ่ม appeal_status_history และ notifications ให้นักศึกษา/อาจารย์",
+    "INSERT INTO public.appeal_status_history (appeal_id, changed_by, old_status, new_status) VALUES (new.appeals_id, public.app_user_id(), old.status, new.status);",
+    "INSERT INTO public.notifications (appeal_id, user_id, massage) VALUES (new.appeals_id, e.student_user_id, 'สถานะคำร้องเปลี่ยน');"
+  ],'ซ่อนข้อความความคิดเห็น'); render(); appealModal(aid); toast('ยืนยันคำร้องและบันทึกลงฐานข้อมูลแล้ว');
 }
 function staffReject(aid){
   if(get('grade_appeals',aid).status!=='pending'){toast('คำร้องนี้ถูกเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
@@ -751,7 +779,15 @@ async function staffReject0(aid){
   const comment=$('#staffComment')?.value.trim()||null;
   const {error}=await sbClient.rpc('staff_respond_appeal',{p_appeal_id:aid,p_decision:'rejected',p_comment:comment});
   if(error){toast('ปฏิเสธไม่สำเร็จ: '+error.message);return}
-  await loadRemoteData(); render(); appealModal(aid); toast('บันทึกผลลงฐานข้อมูลแล้ว');
+  await loadRemoteData(); recordLiveSql(`เจ้าหน้าที่ไม่รับคำร้อง #${aid}`,"POST /rest/v1/rpc/staff_respond_appeal",[
+    "-- SQL ภายใน public.staff_respond_appeal",
+    "SELECT * FROM public.grade_appeals WHERE appeals_id = p_appeal_id FOR UPDATE;",
+    "UPDATE public.grade_appeals SET status = 'rejected', staff_comment = NULLIF(BTRIM(COALESCE(p_comment, '')), '')",
+    "WHERE appeals_id = p_appeal_id;",
+    "-- Trigger เพิ่ม appeal_status_history และ notifications ให้นักศึกษา",
+    "INSERT INTO public.appeal_status_history (appeal_id, changed_by, old_status, new_status) VALUES (new.appeals_id, public.app_user_id(), old.status, new.status);",
+    "INSERT INTO public.notifications (appeal_id, user_id, massage) VALUES (new.appeals_id, e.student_user_id, 'สถานะคำร้องเปลี่ยน');"
+  ],'ซ่อนข้อความความคิดเห็น'); render(); appealModal(aid); toast('บันทึกผลลงฐานข้อมูลแล้ว');
 }
 function decideAppeal(aid){
   if(get('grade_appeals',aid).status!=='reviewing'){toast('คำร้องนี้ถูกยกเลิกหรือเปลี่ยนสถานะแล้ว');render();appealModal(aid);return}
@@ -762,7 +798,19 @@ async function decideAppeal0(aid){
   const comment=$('#teacherComment')?.value.trim()||null;
   const {error}=await sbClient.rpc('review_appeal',{p_appeal_id:aid,p_decision:dec,p_new_grade:dec==='approved'?$('#ng').value:null,p_comment:comment});
   if(error){toast('บันทึกผลไม่สำเร็จ: '+error.message);return}
-  await loadRemoteData(); render(); appealModal(aid); toast(dec==='approved'?'อนุมัติและบันทึกการแก้เกรดแล้ว':'บันทึกผลไม่อนุมัติแล้ว');
+  const grade=dec==='approved'?$('#ng').value:null;
+  await loadRemoteData(); recordLiveSql(`อาจารย์${dec==='approved'?'อนุมัติ':'ไม่อนุมัติ'}คำร้อง #${aid}`,"POST /rest/v1/rpc/review_appeal",[
+    "-- SQL ภายใน public.review_appeal",
+    "SELECT * FROM public.grade_appeals WHERE appeals_id = p_appeal_id FOR UPDATE;",
+    "SELECT * FROM public.enrollments WHERE enrollment_id = a.enrollment_id FOR UPDATE;",
+    "INSERT INTO public.appeal_reviews (reviewer_id, appeal_id, decision, new_grade)",
+    "VALUES (public.app_user_id(), a.appeals_id, p_decision, CASE WHEN p_decision = 'approved' THEN p_new_grade ELSE e.grade END);",
+    ...(dec==='approved'?["UPDATE public.enrollments SET grade = p_new_grade WHERE enrollment_id = e.enrollment_id;","INSERT INTO public.grade_history (appeal_id, enrollment_id, old_grade, new_grade, changed_by)","VALUES (a.appeals_id, e.enrollment_id, e.grade, p_new_grade, public.app_user_id());"]:[]),
+    "UPDATE public.grade_appeals SET status = p_decision, teacher_comment = NULLIF(BTRIM(COALESCE(p_comment, '')), '') WHERE appeals_id = a.appeals_id;",
+    "-- Trigger เพิ่มประวัติสถานะและแจ้งผลแก่นักศึกษา",
+    "INSERT INTO public.appeal_status_history (appeal_id, changed_by, old_status, new_status) VALUES (new.appeals_id, public.app_user_id(), old.status, new.status);",
+    "INSERT INTO public.notifications (appeal_id, user_id, massage) VALUES (new.appeals_id, e.student_user_id, 'สถานะคำร้องเปลี่ยน');"
+  ],`เกรดใหม่ ${grade||'ไม่มีการเปลี่ยนเกรด'}; ซ่อนข้อความความคิดเห็น`); render(); appealModal(aid); toast(dec==='approved'?'อนุมัติและบันทึกการแก้เกรดแล้ว':'บันทึกผลไม่อนุมัติแล้ว');
 }
 
 async function resetDemoData(){
@@ -879,43 +927,22 @@ function vReport(){
 
 /* ============ SQL LOG ============ */
 function reportSql(){
-  const sid=S.user.role==='student'?myStudent().student_ID:6401001;
-  return `-- หน้าประกาศเกรด (นักศึกษารหัส ${sid})
-SELECT c.course_code, c.course_name, o.semester, o.academic_year,
-       e.grade, a.grade_at_request, a.status
-FROM enrollment e
-JOIN course_offering o ON o.offering_ID = e.offering_ID
-JOIN course c          ON c.course_ID   = o.course_ID
-LEFT JOIN grade_appeals a ON a.enrollment_ID = e.enrollment_ID
-WHERE e.student_ID = ${sid};
-
--- รายงานสรุปคำร้องแยกตามรายวิชา
-SELECT c.course_code, o.semester, o.academic_year,
-       COUNT(*)                  AS total,
-       SUM(a.status='pending')   AS pending,
-       SUM(a.status='reviewing') AS reviewing,
-       SUM(a.status='approved')  AS approved,
-       SUM(a.status='rejected')  AS rejected
-FROM grade_appeals a
-JOIN enrollment e      ON e.enrollment_ID = a.enrollment_ID
-JOIN course_offering o ON o.offering_ID   = e.offering_ID
-JOIN course c          ON c.course_ID     = o.course_ID
-GROUP BY o.offering_ID, c.course_code, o.semester, o.academic_year;
-
--- ประวัติการแก้ไขเกรด
-SELECT h.appeal_ID, s.First_Name, c.course_code, h.old_grade, h.new_grade, h.changed_by
-FROM grade_history h
-JOIN enrollment e      ON e.enrollment_ID = h.enrollment_ID
-JOIN student s         ON s.student_ID    = e.student_ID
-JOIN course_offering o ON o.offering_ID   = e.offering_ID
-JOIN course c          ON c.course_ID     = o.course_ID;`;
+  return `-- ตัวอย่าง SQL ที่เทียบเท่ากับการอ่านข้อมูลใน loadRemoteData()
+-- เว็บเรียก sbClient.from('<table>').select('*') ผ่าน Supabase REST API
+-- PostgreSQL ใช้ชื่อตารางจริงแบบพหูพจน์ และ RLS จำกัดแถวตามบัญชีที่เข้าสู่ระบบ
+SELECT * FROM public.enrollments;
+SELECT * FROM public.grade_appeals;
+SELECT * FROM public.appeal_status_history;
+SELECT * FROM public.notifications;`;
 }
 function vSql(){
-  const items=SQL.map((x,i)=>({...x,n:i+1})).reverse();
-  return `<div class="h-row"><div><h2>SQL เบื้องหลัง</h2><p>ทุกการทำงานผ่านหน้าจอถูกแปลงเป็น transaction ตามรายการด้านล่าง (ล่าสุดอยู่บนสุด)</p></div></div>
-  ${items.length?items.map(x=>`<div class="panel sqlcard"><div class="hd"><b>#${x.n} ${esc(x.title)}</b><span><span class="pill ${x.ok?'p-approved':'p-rejected'}">${x.ok?'COMMIT':'ROLLBACK'}</span></span></div>
-    <div class="who">โดย ${esc(x.who)}${x.note?` · ${esc(x.note)}`:''}</div><pre style="margin-top:8px">${esc(x.stmts.join('\n'))}</pre></div>`).join(''):'<div class="panel empty">ยังไม่มีรายการ ลองยื่นคำร้องหรือกดยืนยันคำร้อง แล้วกลับมาดูที่นี่</div>'}
-  <div class="h-row" style="margin-top:22px"><div><h2 style="font-size:17px">Query ที่ใช้แสดงหน้าประกาศเกรดและรายงาน</h2></div></div>
+  const simulations=SQL.map((x,i)=>({...x,n:i+1})).reverse();
+  return `<div class="h-row"><div><h2>SQL เบื้องหลัง</h2><p>บันทึกรายการ backend ที่สำเร็จจริงใน session นี้ · ค่าที่ผู้ใช้กรอกจะไม่แสดง</p></div></div>
+  <div class="box" style="margin-bottom:12px">เว็บเรียก Supabase ผ่าน REST/RPC API จึงไม่ได้ส่ง SQL ดิบจากเบราว์เซอร์ การ์ดด้านล่างแสดง API call ที่สำเร็จและ SQL ในฟังก์ชันฐานข้อมูลที่เกี่ยวข้อง โดยตัดข้อมูลส่วนตัวออก</div>
+  ${LIVE_SQL.length?LIVE_SQL.map((x,i)=>`<div class="panel sqlcard"><div class="hd"><b>#${LIVE_SQL.length-i} ${esc(x.title)}</b><span class="pill p-approved">สำเร็จจริง</span></div>
+    <div class="who">โดย ${esc(x.who)} · ${esc(x.at)}${x.note?` · ${esc(x.note)}`:''}</div><p style="margin:8px 0 4px"><b>คำขอจากเว็บ</b></p><pre>${esc(x.call)}</pre><p style="margin:8px 0 4px"><b>SQL ฝั่ง Supabase</b></p><pre>${esc(x.stmts.join('\n'))}</pre></div>`).join(''):'<div class="panel empty">ยังไม่มีรายการ backend ใน session นี้ ลองยื่นคำร้องหรือดำเนินการคำร้อง แล้วกลับมาดูที่นี่</div>'}
+  ${simulations.length?`<div class="h-row" style="margin-top:22px"><div><h2 style="font-size:17px">รายการจากโหมดทดสอบจำลอง</h2><p>คำสั่งในส่วนนี้ใช้สาธิตกฎระบบ และไม่ได้ส่งไปเปลี่ยนข้อมูลใน Supabase</p></div></div>${simulations.map(x=>`<div class="panel sqlcard"><div class="hd"><b>${esc(x.title)}</b><span class="pill ${x.ok?'p-approved':'p-rejected'}">${x.ok?'จำลอง':'ถูกปฏิเสธ'}</span></div><div class="who">${esc(x.note||'')}</div><pre style="margin-top:8px">${esc(x.stmts.join('\n'))}</pre></div>`).join('')}`:''}
+  <div class="h-row" style="margin-top:22px"><div><h2 style="font-size:17px">ตัวอย่าง SQL สำหรับอ่านข้อมูล</h2><p>รูปแบบเทียบเท่ากับคำขออ่านข้อมูลที่เว็บส่งผ่าน Supabase JS</p></div></div>
   <div class="panel card"><pre>${esc(reportSql())}</pre></div>`;
 }
 
